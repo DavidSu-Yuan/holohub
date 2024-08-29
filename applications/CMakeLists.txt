@@ -23,7 +23,8 @@ add_holohub_application(basic_networking_ping DEPENDS
 add_holohub_application(body_pose_estimation DEPENDS
                         OPERATORS OPTIONAL dds_video_subscriber dds_video_publisher)
 
-add_holohub_application(colonoscopy_segmentation)
+add_holohub_application(colonoscopy_segmentation DEPENDS
+                        OPERATORS OPTIONAL yuan_qcap)
 
 add_holohub_application(cvcuda_basic DEPENDS OPERATORS cvcuda_holoscan_interop)
 
@@ -60,7 +61,8 @@ add_holohub_application(model_benchmarking)
 add_holohub_application(multiai_endoscopy)
 
 add_holohub_application(multiai_ultrasound DEPENDS
-                        OPERATORS visualizer_icardio)
+                        OPERATORS visualizer_icardio
+                                  OPTIONAL yuan_qcap)
 
 add_holohub_application(simple_radar_pipeline)
 add_holohub_application(simple_pdw_pipeline DEPENDS
@@ -82,7 +84,8 @@ add_holohub_application(network_radar_pipeline DEPENDS
                         OPERATORS basic_network
                                   advanced_network)
 
-add_holohub_application(ultrasound_segmentation)
+add_holohub_application(ultrasound_segmentation DEPENDS
+                        OPERATORS OPTIONAL yuan_qcap)
 
 add_holohub_application(velodyne_lidar_app DEPENDS
                         OPERATORS velodyne_lidar
