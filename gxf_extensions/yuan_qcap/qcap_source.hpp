@@ -124,6 +124,12 @@ enum DeviceStatus {
   STATUS_SIGNAL_LOCKED,
 };
 
+enum AutoDetectState {
+  STATE_AUTO,
+  STATE_FORCED,
+  STATE_DETECTED,
+};
+
 /// @brief Video input codelet for use with capture cards.
 ///
 /// Provides a codelet for supporting capture card as a source.
@@ -140,6 +146,8 @@ class QCAPSource : public gxf::Codelet {
   gxf_result_t stop() override;
 
   void initCuda();
+  void cleanupInputInfo();
+  void configureInput();
   void cleanupCuda();
 
   void loadImage(const char* filename, const unsigned char* buffer, const size_t size,
@@ -162,7 +170,9 @@ class QCAPSource : public gxf::Codelet {
   gxf::Parameter<uint32_t> sdi12g_mode_;
 
   volatile DeviceStatus m_status = STATUS_NO_SDK;
+  volatile AutoDetectState m_autoDetectState = STATE_AUTO;
   void* m_hDevice = nullptr;
+  bool m_bHasSignal = false;
   unsigned long m_nVideoWidth = 0;
   unsigned long m_nVideoHeight = 0;
   bool m_bVideoIsInterleaved = false;
@@ -173,6 +183,7 @@ class QCAPSource : public gxf::Codelet {
   unsigned long m_nVideoInput = 0;
   unsigned long m_nAudioInput = 0;
   unsigned char* m_pGPUDirectBuffer[kDefaultGPUDirectRingQueueSize] = {};
+  bool m_needToChangeInputType = false;
 
   unsigned char* m_pRGBBUffer[kDefaultColorConvertBufferSize] = {};
   unsigned long m_nRGBBufferIndex = 0;

@@ -33,7 +33,7 @@ yuan:
   width: 3840
   height: 2160
   rdma: true
-  input_type: hdmi
+  input_type: "auto"
 
 replayer:
   basename: "surgical_video"

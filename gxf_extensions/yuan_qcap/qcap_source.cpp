@@ -62,8 +62,15 @@ QRETURN on_process_signal_removed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
 
   GXF_LOG_INFO("QCAP Source: signal removed \n");
 
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_DETECTED) {
+    qcap->m_autoDetectState = STATE_AUTO;
+    qcap->m_needToChangeInputType = true;
+  }
+
   qcap->m_status = STATUS_SIGNAL_REMOVED;
   qcap->m_queue.signal(false);
+
   return QCAP_RT_OK;
 }
 
@@ -73,8 +80,15 @@ QRETURN on_process_no_signal_detected(PVOID pDevice, ULONG nVideoInput, ULONG nA
 
   GXF_LOG_INFO("QCAP Source: no signal Detected \n");
 
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_DETECTED) {
+    qcap->m_autoDetectState = STATE_AUTO;
+    qcap->m_needToChangeInputType = true;
+  }
+
   qcap->m_status = STATUS_NO_SIGNAL;
   qcap->m_queue.signal(false);
+
   return QCAP_RT_OK;
 }
 
@@ -98,6 +112,62 @@ inline unsigned long getVideoSizeByPixelFormat(uint32_t pixel_format_, unsigned 
       return video_size;
 }
 
+const char* VideoInputTypeStr(ULONG nVideoInput) {
+    const char* _str = " ";
+    switch (nVideoInput) {
+        case 0:
+            _str = "COMPOSITE";
+            break;
+        case 1:
+            _str = "SVIDEO";
+            break;
+        case 2:
+            _str = "HDMI";
+            break;
+        case 3:
+            _str = "DVI_D";
+            break;
+        case 4:
+            _str = "COMPONENTS (YCBCR)";
+            break;
+        case 5:
+            _str = "DVI_A (RGB / VGA)";
+            break;
+        case 6:
+            _str = "SDI";
+            break;
+        case 7:
+            _str = "AUTO";
+            break;
+        default:
+            _str = "UNKNOW VIDEO";
+            break;
+    }
+    return _str;
+}
+
+const char* AudioInputTypeStr(ULONG nAudioInput) {
+    const char* _str = " ";
+    switch (nAudioInput) {
+        case 0:
+            _str = "EMBEDDED_AUDIO";
+            break;
+        case 1:
+            _str = "LIINE_IN";
+            break;
+        case 2:
+            _str = "SOUNDCARD_MICROPHONE";
+            break;
+        case 3:
+            _str = "SOUNDCARD_LINE_IN";
+            break;
+        default:
+            _str = "UNKNOW AUDIO";
+            break;
+    }
+    return _str;
+}
+
 QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudioInput,
                                   ULONG nVideoWidth, ULONG nVideoHeight, BOOL bVideoIsInterleaved,
                                   double dVideoFrameRate, ULONG nAudioChannels,
@@ -106,10 +176,6 @@ QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
   struct QCAPSource* qcap = (struct QCAPSource*)pUserData;
 
   // GXF_LOG_INFO("QCAP Source: format changed Detected");
-
-  CHAR strVideoInput[64] = {0};
-  CHAR strAudioInput[64] = {0};
-  CHAR strFrameType[64] = {0};
 
   qcap->m_nVideoWidth = nVideoWidth;
   qcap->m_nVideoHeight = nVideoHeight;
@@ -121,37 +187,18 @@ QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
   qcap->m_nVideoInput = nVideoInput;
   qcap->m_nAudioInput = nAudioInput;
 
-  if (nVideoInput == 0) { sprintf(strVideoInput, "COMPOSITE"); } //  NOLINT
-  if (nVideoInput == 1) { sprintf(strVideoInput, "SVIDEO"); } //  NOLINT
-  if (nVideoInput == 2) { sprintf(strVideoInput, "HDMI"); } //  NOLINT
-  if (nVideoInput == 3) { sprintf(strVideoInput, "DVI_D"); } //  NOLINT
-  if (nVideoInput == 4) { sprintf(strVideoInput, "COMPONENTS (YCBCR)"); } //  NOLINT
-  if (nVideoInput == 5) { sprintf(strVideoInput, "DVI_A (RGB / VGA)"); } //  NOLINT
-  if (nVideoInput == 6) { sprintf(strVideoInput, "SDI"); } //  NOLINT
-  if (nVideoInput == 7) { sprintf(strVideoInput, "AUTO"); } //  NOLINT
-  if (nAudioInput == 0) { sprintf(strAudioInput, "EMBEDDED_AUDIO"); } //  NOLINT
-  if (nAudioInput == 1) { sprintf(strAudioInput, "LINE_IN"); } //  NOLINT
-  if (nAudioInput == 2) { sprintf(strAudioInput, "SOUNDCARD_MICROPHONE"); } //  NOLINT
-  if (nAudioInput == 3) { sprintf(strAudioInput, "SOUNDCARD_LINE_IN"); } //  NOLINT
-
-  ULONG nVH = bVideoIsInterleaved == TRUE ? nVideoHeight / 2 : nVideoHeight;
-  sprintf(strFrameType, bVideoIsInterleaved == TRUE ? " I " : " P "); //  NOLINT
-
   GXF_LOG_INFO(
       "QCAP Source: INFO %ld x %ld%s @%2.3f FPS,"
       " %ld CH x %ld BITS x %ld HZ, VIDEO INPUT: %s, AUDIO INPUT: %s",
       nVideoWidth,
-      nVH,
-      strFrameType,
+      bVideoIsInterleaved == TRUE ? nVideoHeight / 2 : nVideoHeight,
+      bVideoIsInterleaved == TRUE ? " I " : " P ",
       dVideoFrameRate,
       nAudioChannels,
       nAudioBitsPerSample,
       nAudioSampleFrequency,
-      strVideoInput,
-      strAudioInput);
-
-  qcap->m_status = STATUS_SIGNAL_LOCKED;
-  qcap->m_queue.signal(true);
+      VideoInputTypeStr(nVideoInput),
+      AudioInputTypeStr(nAudioInput));
 
   unsigned long video_size = getVideoSizeByPixelFormat(qcap->pixel_format_,
           qcap->m_nVideoWidth, qcap->m_nVideoHeight);
@@ -163,6 +210,15 @@ QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
           qcap->m_cuConvertBuffer[i] = 0;
       }
   }
+
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_AUTO) {
+    qcap->m_autoDetectState = STATE_DETECTED;
+    qcap->m_needToChangeInputType = true;
+  }
+
+  qcap->m_status = STATUS_SIGNAL_LOCKED;
+  qcap->m_queue.signal(true);
 
   return QCAP_RT_OK;
 }
@@ -342,7 +398,72 @@ void QCAPSource::cleanupCuda() {
   }
 }
 
+void QCAPSource::configureInput() {
+  ULONG nSelectedInputType = QCAP_INPUT_TYPE_AUTO;
+  // QCAP_SET_AUDIO_SOUND_RENDERER(m_hDevice, 0);
+  if (input_type_ == INPUTTYPE_AUTO) {
+      if (m_autoDetectState == STATE_AUTO) {
+          nSelectedInputType = QCAP_INPUT_TYPE_AUTO;
+      } else if (m_autoDetectState == STATE_DETECTED) {
+          nSelectedInputType = m_nVideoInput;
+      }
+  } else {
+    m_autoDetectState = STATE_FORCED;
+    if (input_type_ == INPUTTYPE_DVI_D) {
+        nSelectedInputType = QCAP_INPUT_TYPE_DVI_D;
+    } else if (input_type_ == INPUTTYPE_DISPLAY_PORT) {
+      GXF_LOG_INFO("QCAP Source: DP MST mode is %d", mst_mode_.get());
+      if (mst_mode_ == DISPLAYPORT_MST_MODE) {
+        nSelectedInputType = QCAP_INPUT_TYPE_DISPLAY_PORT_MST;
+      } else {
+        nSelectedInputType = QCAP_INPUT_TYPE_DISPLAY_PORT_SST;
+      }
+    } else if (input_type_ == INPUTTYPE_SDI) {
+      nSelectedInputType = QCAP_INPUT_TYPE_SDI;
+    } else if (input_type_ == INPUTTYPE_HDMI) {
+      nSelectedInputType = QCAP_INPUT_TYPE_HDMI;
+    } else {  // INPUTTYPE_AUTO or Default
+      /* do nothing, we don't change input type. Let driver select it. */
+    }
+  }
+  GXF_LOG_INFO("QCAP Source: Current Input type is %s(%ld) state %d",
+          VideoInputTypeStr(nSelectedInputType), nSelectedInputType,
+          m_autoDetectState);
+  QCAP_SET_VIDEO_INPUT(m_hDevice, nSelectedInputType);
+
+  ULONG nVideoInput = 0;
+  QCAP_GET_VIDEO_INPUT(m_hDevice, &nVideoInput);
+  GXF_LOG_INFO("QCAP Source: Use input %lu", nVideoInput);
+  if (input_type_ == INPUTTYPE_AUTO) {
+      pixel_format_ = PIXELFORMAT_YUY2;
+  } else if (nVideoInput == QCAP_INPUT_TYPE_SDI) {
+    GXF_LOG_INFO("QCAP Source: SDI 12G mode is %d", sdi12g_mode_.get());
+
+    if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
+      int qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
+      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
+    }
+
+    // Workaround
+    if (pixel_format_ == PIXELFORMAT_BGR24) {
+      GXF_LOG_INFO("QCAP Source: SDI only support YUY2 or NV12, switch to yuy2");
+      pixel_format_ = PIXELFORMAT_YUY2;
+    }
+  }
+  QCAP_SET_VIDEO_DEFAULT_OUTPUT_FORMAT(m_hDevice, pixel_format_, 0, 0, 0, 0);
+
+  if (m_autoDetectState == STATE_DETECTED || m_autoDetectState == STATE_FORCED) {
+    QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, on_process_video_preview, this);
+    QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, on_process_audio_preview, this);
+  } else {
+    QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, nullptr, this);
+    QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, nullptr, this);
+  }
+}
+
 gxf_result_t QCAPSource::start() {
+
   if (pixel_format_str_.get().compare("yuy2") == 0) {
     pixel_format_ = PIXELFORMAT_YUY2;
   } else if (pixel_format_str_.get().compare("nv12") == 0) {
@@ -388,65 +509,41 @@ gxf_result_t QCAPSource::start() {
     cudaMalloc((void**)&m_pRGBBUffer[i], kDefaultPreviewSize);
   }
 
+  m_status = STATUS_NO_SDK;
+  m_autoDetectState = STATE_AUTO;
+  m_hDevice = nullptr;
+  m_bHasSignal = false;
+  m_nVideoWidth = 0;
+  m_nVideoHeight = 0;
+  m_bVideoIsInterleaved = false;
+  m_dVideoFrameRate = 0.0f;
+  m_nAudioChannels = 0;
+  m_nAudioBitsPerSample = 0;
+  m_nAudioSampleFrequency = 0;
+  m_nVideoInput = 0;
+  m_nAudioInput = 0;
+  m_needToChangeInputType = false;
+
   QCAP_CREATE((char*)device_specifier_.get().c_str(), 0, nullptr, &m_hDevice, TRUE);
 
   QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
   QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VO_BACKEND, 2);
 
-  // QCAP_SET_AUDIO_SOUND_RENDERER(m_hDevice, 0);
-
   QCAP_REGISTER_NO_SIGNAL_DETECTED_CALLBACK(m_hDevice, on_process_no_signal_detected, this);
   QCAP_REGISTER_SIGNAL_REMOVED_CALLBACK(m_hDevice, on_process_signal_removed, this);
   QCAP_REGISTER_FORMAT_CHANGED_CALLBACK(m_hDevice, on_process_format_changed, this);
-  QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, on_process_video_preview, this);
-  QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, on_process_audio_preview, this);
 
-  if (input_type_ == INPUTTYPE_DVI_D) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DVI_D);
-  } else if (input_type_ == INPUTTYPE_DISPLAY_PORT) {
-    GXF_LOG_INFO("QCAP Source: DP MST mode is %d", mst_mode_.get());
-    if (mst_mode_ == DISPLAYPORT_MST_MODE) {
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DISPLAY_PORT_MST);
-    } else {
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DISPLAY_PORT_SST);
-    }
-  } else if (input_type_ == INPUTTYPE_SDI) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
-  } else if (input_type_ == INPUTTYPE_HDMI) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_HDMI);
-  } else {  // INPUTTYPE_AUTO or Default
-    /* do nothing, we don't change input type. Let driver select it. */
-  }
-
-  ULONG nVideoInput = 0;
-  QCAP_GET_VIDEO_INPUT(m_hDevice, &nVideoInput);
-  GXF_LOG_INFO("QCAP Source: Use input %lu", nVideoInput);
-  if (nVideoInput == QCAP_INPUT_TYPE_SDI) {
-    GXF_LOG_INFO("QCAP Source: SDI 12G mode is %d", sdi12g_mode_.get());
-
-    if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
-      int qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
-      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
-    }
-
-    // Workaround
-    if (pixel_format_ == PIXELFORMAT_BGR24) {
-      GXF_LOG_INFO("QCAP Source: SDI only support YUY2 or NV12, switch to yuy2");
-      pixel_format_ = PIXELFORMAT_YUY2;
-    }
-  }
-  QCAP_SET_VIDEO_DEFAULT_OUTPUT_FORMAT(m_hDevice, pixel_format_, 0, 0, 0, 0);
+  configureInput();
 
   if (use_rdma_) {
     for (int i = 0; i < kDefaultGPUDirectRingQueueSize; i++) {
       QCAP_ALLOC_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, &m_pGPUDirectBuffer[i], kDefaultPreviewSize);
       QCAP_BIND_VIDEO_GPUDIRECT_PREVIEW_BUFFER(
-          m_hDevice, i, m_pGPUDirectBuffer[i], kDefaultPreviewSize);
+              m_hDevice, i, m_pGPUDirectBuffer[i], kDefaultPreviewSize);
       GXF_LOG_INFO("QCAP Source: Allocate gpu buffer id:%d, pointer:%p size:%d",
-                   i,
-                   m_pGPUDirectBuffer[i],
-                   kDefaultPreviewSize);
+              i,
+              m_pGPUDirectBuffer[i],
+              kDefaultPreviewSize);
     }
   }
 
@@ -501,6 +598,21 @@ gxf_result_t QCAPSource::tick() {
     return GXF_FAILURE;
   }
 
+  if (m_needToChangeInputType) {
+    // 1. stop qcap first.
+    QCAP_STOP(m_hDevice);
+
+    // 2. configure to new input type.
+    configureInput();
+
+    // 3. run qcap again.
+    QCAP_RUN(m_hDevice);
+
+    // 4. back to normal procedure
+    m_needToChangeInputType = false;
+    return GXF_SUCCESS;
+  }
+
   // GXF_LOG_ERROR("QCAP Source: status %d in tick", m_status);
   // Show error image
   if (m_status != STATUS_SIGNAL_LOCKED) {
@@ -527,7 +639,7 @@ gxf_result_t QCAPSource::tick() {
     gxf::VideoTypeTraits<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> video_type;
     gxf::VideoFormatSize<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> color_format;
     auto color_planes = color_format.getDefaultColorPlanes(out_width, out_height);
-  color_planes[0].stride = out_width * 3;
+    color_planes[0].stride = out_width * 3;
     gxf::VideoBufferInfo info{(uint32_t)out_width,
                               (uint32_t)out_height,
                               video_type.value,
