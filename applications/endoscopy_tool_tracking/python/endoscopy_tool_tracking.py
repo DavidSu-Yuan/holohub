@@ -29,7 +29,7 @@ from holoscan.resources import BlockMemoryPool, CudaStreamPool, MemoryStorageTyp
 from holohub.lstm_tensor_rt_inference import LSTMTensorRTInferenceOp
 
 # Enable this line for Yuam capture card
-# from holohub.qcap_source import QCAPSourceOp
+from holohub.qcap_source import QCAPSourceOp
 from holohub.tool_tracking_postprocessor import ToolTrackingPostprocessorOp
 
 # Enable this line for vtk rendering
@@ -89,7 +89,7 @@ class EndoscopyApp(Application):
         elif self.source.lower() == "yuan":
             yuan_kwargs = self.kwargs("yuan")
             # Uncomment to enable QCap
-            # source = QCAPSourceOp(self, name="yuan", **yuan_kwargs)
+            source = QCAPSourceOp(self, name="yuan", **yuan_kwargs)
 
             # 4 bytes/channel, 4 channels
             width = yuan_kwargs["width"]
