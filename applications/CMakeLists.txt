@@ -61,7 +61,8 @@ add_holohub_application(hyperspectral_segmentation)
 
 add_holohub_application(multiai_endoscopy)
 
-add_holohub_application(multiai_ultrasound)
+add_holohub_application(multiai_ultrasound DEPENDS
+                        OPERATORS OPTIONAL yuan_qcap)
 
 add_holohub_application(simple_radar_pipeline)
 add_holohub_application(simple_pdw_pipeline DEPENDS

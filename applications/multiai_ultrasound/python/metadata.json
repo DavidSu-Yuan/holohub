@@ -30,7 +30,7 @@
 		"dependencies": {},
 		"run": {
 			"command": "python3 <holohub_app_source>/multiai_ultrasound.py  --data <holohub_data_dir>/multiai_ultrasound",
-			"workdir": "holohub_app_bin"
+			"workdir": "holohub_bin"
 		}
 	}
 }

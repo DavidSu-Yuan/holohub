@@ -13,7 +13,7 @@ The default configuration (`multiai_ultrasound.yaml`) runs on default GPU (GPU-0
 
 ### Requirements
 
-The provided applications are configured to either use the AJA capture card for input stream, or a pre-recorded video of the echocardiogram (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
+The provided applications are configured to either use capture cards for input stream, or a pre-recorded video of the echocardiogram (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
 
 ### Data
 
@@ -45,5 +45,11 @@ In your `build` directory, run the commands of your choice:
 * Using an AJA card
     ```bash
     sed -i -e 's#^source:.*#source: aja#' applications/multiai_ultrasound/cpp/multiai_ultrasound.yaml
+    applications/multiai_ultrasound/cpp/multiai_ultrasound
+    ```
+* Using a Yuan card
+    ```bash
+    sed -i -e '/^#.*yuan_qcap/s/^#//' applications/multiai_ultrasound/cpp/multiai_ultrasound.yaml
+    sed -i -e 's#^source:.*#source: yuan#' applications/multiai_ultrasound/cpp/multiai_ultrasound.yaml
     applications/multiai_ultrasound/cpp/multiai_ultrasound
     ```
