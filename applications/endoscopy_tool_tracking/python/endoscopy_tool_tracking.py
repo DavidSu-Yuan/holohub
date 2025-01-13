@@ -35,6 +35,8 @@ from holoscan.resources import (
 from holohub.lstm_tensor_rt_inference import LSTMTensorRTInferenceOp
 from holohub.tool_tracking_postprocessor import ToolTrackingPostprocessorOp
 
+# Enable this line for Yuan capture card
+from holohub.qcap_source import QCAPSourceOp
 
 def lazy_import(module_name):
     """Lazily import a module by name.
@@ -144,8 +146,13 @@ class EndoscopyApp(Application):
             )
         elif source_name == "yuan":
             yuan_kwargs = self.kwargs("yuan")
+<<<<<<< HEAD
             qcap_source = lazy_import("holohub.qcap_source")
             source = qcap_source.QCAPSourceOp(self, name="yuan", **yuan_kwargs)
+=======
+            # Uncomment to enable QCap
+            source = QCAPSourceOp(self, name="yuan", **yuan_kwargs)
+>>>>>>> 86b03898 (Enable yuan on endoscopy_tool_tracking by default)
 
             # 4 bytes/channel, 4 channels
             width = yuan_kwargs["width"]
