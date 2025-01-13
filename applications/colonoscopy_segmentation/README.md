@@ -5,7 +5,7 @@ Full workflow including a generic visualization of segmentation results from a p
 ### Requirements
 
 - Python 3.8+
-- The provided applications are configured to either use the AJA capture card for input stream, or a pre-recorded video of the colonoscopy data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
+- The provided applications are configured to either use the AJA or Yuan capture card for input stream, or a pre-recorded video of the colonoscopy data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
 
 ### Data
 
@@ -49,6 +49,12 @@ Next, run the commands of your choice:
     python3 colonoscopy_segmentation.py --source=aja --no-contours
     ```
 Note that segmentation contours can be shown (instead of segmentation masks) by changing `--no-contours` to `--contours`.
+
+* Using a YUAN card
+    ```bash
+    cd <HOLOHUB_SOURCE_DIR>/applications/colonoscopy_segmentation
+    python3 colonoscopy_segmentation.py --source=yuan
+    ```
 
 ### Holoscan SDK version
 
