@@ -27,7 +27,7 @@
 		"requirements": {},
 		"run": {
 			"command": "<holohub_app_bin>/multiai_ultrasound --data <holohub_data_dir>/multiai_ultrasound",
-			"workdir": "holohub_app_bin"
+			"workdir": "holohub_bin"
 		}
 	}
 }
