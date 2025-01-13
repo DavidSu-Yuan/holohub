@@ -34,6 +34,8 @@ target_link_libraries(ultrasound_segmentation
    holoscan::ops::holoviz
 )
 
+target_link_libraries(ultrasound_segmentation PRIVATE $<TARGET_NAME_IF_EXISTS:holoscan::qcap_source>)
+
 # Download the associated dataset if needed
 if(HOLOHUB_DOWNLOAD_DATASETS)
   add_dependencies(ultrasound_segmentation ultrasound_segmentation_data)
