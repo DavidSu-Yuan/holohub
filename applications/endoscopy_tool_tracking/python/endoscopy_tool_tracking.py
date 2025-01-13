@@ -35,7 +35,6 @@ from holoscan.resources import (
 from holohub.lstm_tensor_rt_inference import LSTMTensorRTInferenceOp
 from holohub.tool_tracking_postprocessor import ToolTrackingPostprocessorOp
 
-
 def lazy_import(module_name):
     """Lazily import a module by name.
 
@@ -146,7 +145,6 @@ class EndoscopyApp(Application):
             yuan_kwargs = self.kwargs("yuan")
             qcap_source = lazy_import("holohub.qcap_source")
             source = qcap_source.QCAPSourceOp(self, name="yuan", **yuan_kwargs)
-
             # 4 bytes/channel, 4 channels
             width = yuan_kwargs["width"]
             height = yuan_kwargs["height"]
