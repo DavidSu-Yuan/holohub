@@ -27,7 +27,7 @@ from holoscan.operators import (
 from holoscan.resources import BlockMemoryPool, CudaStreamPool, MemoryStorageType
 
 from holohub.aja_source import AJASourceOp
-
+from holohub.qcap_source import QCAPSourceOp
 
 class UltrasoundApp(Application):
     def __init__(self, data, source="replayer"):
@@ -35,9 +35,9 @@ class UltrasoundApp(Application):
 
         Parameters
         ----------
-        source : {"replayer", "aja"}
+        source : {"replayer", "aja", "yuan"}
             When set to "replayer" (the default), pre-recorded sample video data is
-            used as the application input. Otherwise, the video stream from an AJA
+            used as the application input. Otherwise, the video stream from an AJA or Yuan
             capture card is used.
         """
 
@@ -73,6 +73,7 @@ class UltrasoundApp(Application):
         )
 
         is_aja = self.source.lower() == "aja"
+        is_yuan = self.source.lower() == "yuan"
         if is_aja:
             source = AJASourceOp(self, name="aja", **self.kwargs("aja"))
             drop_alpha_block_size = 1920 * 1080 * n_channels * bpp
@@ -89,6 +90,8 @@ class UltrasoundApp(Application):
                 cuda_stream_pool=cuda_stream_pool,
                 **self.kwargs("drop_alpha_channel"),
             )
+        elif is_yuan:
+            source = QCAPSourceOp(self, name="yuan", **self.kwargs("yuan"))
         else:
             video_dir = self.sample_data_path
             if not os.path.exists(video_dir):
@@ -186,10 +189,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--source",
-        choices=["replayer", "aja"],
+        choices=["replayer", "aja", "yuan"],
         default="replayer",
         help=(
-            "If 'replayer', replay a prerecorded video. If 'aja' use an AJA "
+            "If 'replayer', replay a prerecorded video. Otherwise use a "
             "capture card as the source (default: %(default)s)."
         ),
     )

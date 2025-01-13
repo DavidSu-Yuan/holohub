@@ -4,7 +4,7 @@ Full workflow including a generic visualization of segmentation results from a s
 
 ### Requirements
 
-The provided applications are configured to either use the AJA capture card for input stream, or a pre-recorded video of the ultrasound data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
+The provided applications are configured to either use the AJA or Yuan capture card for input stream, or a pre-recorded video of the ultrasound data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
 
 ### Data
 
@@ -31,5 +31,12 @@ In your `build` directory, run the commands of your choice:
 * Using an AJA card
     ```bash
     sed -i -e 's#^source:.*#source: aja#' applications/ultrasound_segmentation/cpp/ultrasound_segmentation.yaml
+    applications/ultrasound_segmentation/cpp/ultrasound_segmentation
+    ```
+
+* Using a Yuan card
+    ```bash
+    sed -i -e '/^#.*yuan_qcap/s/^#//' applications/ultrasound_segmentation/cpp/ultrasound_segmentation.yaml
+    sed -i -e 's#^source:.*#source: yuan#' applications/ultrasound_segmentation/cpp/ultrasound_segmentation.yaml
     applications/ultrasound_segmentation/cpp/ultrasound_segmentation
     ```

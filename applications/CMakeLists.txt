@@ -118,7 +118,9 @@ add_holohub_application(psd_pipeline DEPENDS
                                   vita49_psd_packetizer
                                   data_writer)
 
-add_holohub_application(ultrasound_segmentation DEPENDS OPERATORS aja_source)
+add_holohub_application(ultrasound_segmentation DEPENDS
+                        OPERATORS aja_source
+                                  OPTIONAL yuan_qcap)
 
 add_holohub_application(velodyne_lidar_app DEPENDS
                         OPERATORS velodyne_lidar
