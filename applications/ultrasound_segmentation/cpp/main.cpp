@@ -27,10 +27,15 @@
 #ifdef AJA_SOURCE
 #include <aja_source.hpp>
 #endif
+#ifdef YUAN_QCAP
+#include <qcap_source.hpp>
+#endif
+
 class App : public holoscan::Application {
  public:
   void set_source(const std::string& source) {
     if (source == "aja") { is_aja_source_ = true; }
+    if (source == "yuan") { is_yuan_source_ = true; }
   }
 
   void set_datapath(const std::string& path) {
@@ -49,6 +54,13 @@ class App : public holoscan::Application {
 #else
       throw std::runtime_error(
           "AJA is requested but not available. Please enable AJA at build time.");
+#endif
+    } else if (is_yuan_source_) {
+#ifdef YUAN_QCAP
+      source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"));
+#else
+      throw std::runtime_error(
+          "YUAN is requested but not available. Please enable YUAN_QCAP at build time.");
 #endif
     } else {
       source = make_operator<ops::VideoStreamReplayerOp>("replayer", from_config("replayer"),
@@ -144,6 +156,7 @@ class App : public holoscan::Application {
 
  private:
   bool is_aja_source_ = false;
+  bool is_yuan_source_ = false;
   std::string datapath = "data/ultrasound_segmentation";
 };
 
