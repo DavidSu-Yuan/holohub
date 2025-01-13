@@ -36,6 +36,8 @@ target_link_libraries(multiai_ultrasound
     visualizer_icardio
 )
 
+target_link_libraries(multiai_ultrasound PRIVATE $<TARGET_NAME_IF_EXISTS:holoscan::qcap_source>)
+
 # Download the associated dataset if needed
 if(HOLOHUB_DOWNLOAD_DATASETS)
   add_dependencies(multiai_ultrasound multiai_ultrasound_data)

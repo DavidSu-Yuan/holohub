@@ -78,10 +78,10 @@ add_holohub_application(iio DEPENDS OPERATORS iio_controller fft)
 add_subdirectory(laser_detection_latency)
 
 add_holohub_application(monai_endoscopic_tool_seg DEPENDS OPERATORS aja_source)
-add_holohub_application(multiai_endoscopy DEPENDS
-                        OPERATORS OPTIONAL aja_source)
+add_holohub_application(multiai_endoscopy DEPENDS OPERATORS aja_source)
 add_holohub_application(multiai_ultrasound DEPENDS
-                        OPERATORS OPTIONAL aja_source)
+                        OPERATORS OPTIONAL aja_source
+                                  OPTIONAL yuan_qcap)
 
 add_subdirectory(nvidia_video_codec)
 

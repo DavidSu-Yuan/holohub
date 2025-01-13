@@ -36,10 +36,15 @@
 #define HOLOSCAN_VERSION \
   (HOLOSCAN_VERSION_MAJOR * 10000 + HOLOSCAN_VERSION_MINOR * 100 + HOLOSCAN_VERSION_PATCH)
 
+#ifdef YUAN_QCAP
+#include <qcap_source.hpp>
+#endif
+
 class App : public holoscan::Application {
  public:
   void set_source(const std::string& source) {
     if (source == "aja") { is_aja_source_ = true; }
+    if (source == "yuan") { is_yuan_source_ = true; }
   }
 
   enum class Record { NONE, INPUT, VISUALIZER };
@@ -70,6 +75,13 @@ class App : public holoscan::Application {
 #else
       throw std::runtime_error(
           "AJA is requested but not available. Please enable AJA at build time.");
+#endif
+    } else if (is_yuan_source_) {
+#ifdef YUAN_QCAP
+      source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"));
+#else
+      throw std::runtime_error(
+          "YUAN is requested but not available. Please enable YUAN_QCAP at build time.");
 #endif
     } else {
       source = make_operator<ops::VideoStreamReplayerOp>(
@@ -200,6 +212,18 @@ class App : public holoscan::Application {
     }
 
     // Flow definition
+    if (is_aja_source_ || is_yuan_source_) {
+      const std::set<std::pair<std::string, std::string>> capture_card_port = {{"video_buffer_output", ""}};
+      add_flow(source, plax_cham_pre, capture_card_port);
+      add_flow(source, aortic_ste_pre, capture_card_port);
+      add_flow(source, b_mode_pers_pre, capture_card_port);
+    } else {
+      add_flow(source, plax_cham_pre);
+      add_flow(source, aortic_ste_pre);
+      add_flow(source, b_mode_pers_pre);
+    }
+
+    // Flow definition
     const std::string source_port_name = is_aja_source_ ? "video_buffer_output" : "";
     add_flow(source, plax_cham_pre, {{source_port_name, ""}});
     add_flow(source, aortic_ste_pre, {{source_port_name, ""}});
@@ -237,6 +261,7 @@ class App : public holoscan::Application {
 
  private:
   bool is_aja_source_ = false;
+  bool is_yuan_source_ = false;
   Record record_type_ = Record::NONE;
   std::string datapath = "data/multiai_ultrasound";
 };
