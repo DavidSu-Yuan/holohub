@@ -37,6 +37,7 @@ enum {
   PIXELFORMAT_BGR24 = 1,          //   0xRRGGBB -> B0 G0 R0 B1 G1 R1 B2 G2 R2 ... >>
   PIXELFORMAT_ARGB32 = 2,         // 0xAABBGGRR -> R0 G0 B0 A0 R1 G1 B1 A1 R2 G2 B2 A2 ... >>
   PIXELFORMAT_ABGR32 = 3,         // 0xAARRGGBB -> B0 G0 R0 A0 B1 G1 R1 A1 B2 G2 R2 A2 ... >>
+  PIXELFORMAT_Y210 = 0x30313259,  // 0x30313259 -> MAKEFOURCC('Y', '2', '1', '0') (4:2:2 | 10 BITS)
   PIXELFORMAT_Y416 = 0x36313459,  // 0x36313459 -> MAKEFOURCC('Y', '4', '1', '6') (4:4:4 | 10 BITS)
   PIXELFORMAT_P210 = 0x30313250,  // 0x30313250 -> MAKEFOURCC('P', '2', '1', '0') (4:2:2 | 10 BITS)
   PIXELFORMAT_P010 = 0x30313050,  // 0x30313050 -> MAKEFOURCC('P', '0', '1', '0') (4:2:0 | 10 BITS)
@@ -123,6 +124,12 @@ enum DeviceStatus {
   STATUS_SIGNAL_LOCKED,
 };
 
+enum AutoDetectState {
+  STATE_AUTO,
+  STATE_FORCED,
+  STATE_DETECTED,
+};
+
 /// @brief Video input codelet for use with capture cards.
 ///
 /// Provides a codelet for supporting capture card as a source.
@@ -139,6 +146,8 @@ class QCAPSource : public gxf::Codelet {
   gxf_result_t stop() override;
 
   void initCuda();
+  void cleanupInputInfo();
+  void configureInput();
   void cleanupCuda();
 
   void loadImage(const char* filename, const unsigned char* buffer, const size_t size,
@@ -161,7 +170,9 @@ class QCAPSource : public gxf::Codelet {
   gxf::Parameter<uint32_t> sdi12g_mode_;
 
   volatile DeviceStatus m_status = STATUS_NO_SDK;
+  volatile AutoDetectState m_autoDetectState = STATE_AUTO;
   void* m_hDevice = nullptr;
+  bool m_bHasSignal = false;
   unsigned long m_nVideoWidth = 0;
   unsigned long m_nVideoHeight = 0;
   bool m_bVideoIsInterleaved = false;
@@ -172,11 +183,14 @@ class QCAPSource : public gxf::Codelet {
   unsigned long m_nVideoInput = 0;
   unsigned long m_nAudioInput = 0;
   unsigned char* m_pGPUDirectBuffer[kDefaultGPUDirectRingQueueSize] = {};
+  bool m_needToChangeInputType = false;
 
   unsigned char* m_pRGBBUffer[kDefaultColorConvertBufferSize] = {};
   unsigned long m_nRGBBufferIndex = 0;
+  CUdeviceptr m_cuConvertBuffer[kDefaultColorConvertBufferSize] = {};
+  unsigned long m_nConvertBufferIndex = 0;
 
-  CUcontext m_CudaContext = nullptr;
+  CUcontext m_CudaContext = 0;
 
   struct Image m_iNoDeviceImage;
   struct Image m_iNoSignalImage;

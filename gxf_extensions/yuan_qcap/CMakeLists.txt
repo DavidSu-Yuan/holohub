@@ -35,6 +35,7 @@ find_path(QCAP_INCLUDE
 
 # Create library
 add_library(gxf_qcap_source_lib SHARED
+  cuda/convert.cu
   qcap_queue.hpp
   qcap_source.cpp
   qcap_source.hpp
@@ -55,6 +56,7 @@ target_link_libraries(gxf_qcap_source_lib
     GXF::multimedia
     GXF::std
     yaml-cpp
+    holoscan::core #for dlpack
 )
 
 target_include_directories(gxf_qcap_source_lib
