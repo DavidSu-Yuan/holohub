@@ -27,6 +27,8 @@ from holoscan.operators import (
 )
 from holoscan.resources import BlockMemoryPool, CudaStreamPool, MemoryStorageType
 
+# Enable this line for Yuan capture card
+from holohub.qcap_source import QCAPSourceOp
 
 class ColonoscopyApp(Application):
     def __init__(self, data, source="replayer"):
@@ -34,9 +36,9 @@ class ColonoscopyApp(Application):
 
         Parameters
         ----------
-        source : {"replayer", "aja"}
+        source : {"replayer", "aja", "yuan"}
             When set to "replayer" (the default), pre-recorded sample video data is
-            used as the application input. Otherwise, the video stream from an AJA
+            used as the application input. Otherwise, the video stream from an AJA or Yuan
             capture card is used.
         """
 
@@ -72,7 +74,7 @@ class ColonoscopyApp(Application):
         )
 
         is_aja = self.source.lower() == "aja"
-        if is_aja:
+        if self.source.lower() == "aja":
             source = AJASourceOp(self, name="aja", **self.kwargs("aja"))
             drop_alpha_block_size = 1920 * 1080 * n_channels * bpp
             drop_alpha_num_blocks = 2
@@ -88,6 +90,8 @@ class ColonoscopyApp(Application):
                 cuda_stream_pool=cuda_stream_pool,
                 **self.kwargs("drop_alpha_channel"),
             )
+        elif self.source.lower() == "yuan":
+            source = QCAPSourceOp(self, name="yuan", **self.kwargs("yuan"))
         else:
             video_dir = os.path.join(self.sample_data_path)
             if not os.path.exists(video_dir):
@@ -163,7 +167,7 @@ class ColonoscopyApp(Application):
             **self.kwargs("segmentation_visualizer"),
         )
 
-        if is_aja:
+        if self.source.lower() == "aja":
             self.add_flow(source, segmentation_visualizer, {("video_buffer_output", "receivers")})
             self.add_flow(source, drop_alpha_channel, {("video_buffer_output", "")})
             self.add_flow(drop_alpha_channel, segmentation_preprocessor)
@@ -185,10 +189,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-s",
         "--source",
-        choices=["replayer", "aja"],
+        choices=["replayer", "aja", "yuan"],
         default="replayer",
         help=(
-            "If 'replayer', replay a prerecorded video. If 'aja' use an AJA "
+            "If 'replayer', replay a prerecorded video. Otherwise use a "
             "capture card as the source (default: %(default)s)."
         ),
     )
