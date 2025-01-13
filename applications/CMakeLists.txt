@@ -23,7 +23,8 @@ add_holohub_application(basic_networking_ping DEPENDS
 add_holohub_application(body_pose_estimation DEPENDS
                         OPERATORS OPTIONAL dds_video_subscriber dds_video_publisher)
 
-add_holohub_application(colonoscopy_segmentation)
+add_holohub_application(colonoscopy_segmentation DEPENDS
+                        OPERATORS OPTIONAL yuan_qcap)
 
 add_holohub_application(cvcuda_basic DEPENDS OPERATORS cvcuda_holoscan_interop)
 

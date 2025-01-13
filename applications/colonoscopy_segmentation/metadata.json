@@ -37,8 +37,8 @@
 			]
 		},
 		"run": {
-			"command": "python3 colonoscopy_segmentation.py --data <holohub_data_dir>/colonoscopy_segmentation",
-			"workdir": "holohub_app_source"
+			"command": "python3 <holohub_app_source>/colonoscopy_segmentation.py --data <holohub_data_dir>/colonoscopy_segmentation",
+			"workdir": "holohub_bin"
 		}
 	}
 }
