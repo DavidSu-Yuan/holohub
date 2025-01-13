@@ -25,10 +25,15 @@
 #include <holoscan/operators/segmentation_postprocessor/segmentation_postprocessor.hpp>
 #include <holoscan/operators/holoviz/holoviz.hpp>
 
+#ifdef YUAN_QCAP
+#include <qcap_source.hpp>
+#endif
+
 class App : public holoscan::Application {
  public:
   void set_source(const std::string& source) {
     if (source == "aja") { is_aja_source_ = true; }
+    if (source == "yuan") { is_yuan_source_ = true; }
   }
 
   void set_datapath(const std::string& path) {
@@ -43,6 +48,10 @@ class App : public holoscan::Application {
 
     if (is_aja_source_) {
       source = make_operator<ops::AJASourceOp>("aja", from_config("aja"));
+    } else if (is_yuan_source_) {
+#ifdef YUAN_QCAP
+      source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"));
+#endif
     } else {
       source = make_operator<ops::VideoStreamReplayerOp>("replayer", from_config("replayer"),
                                                                      Arg("directory", datapath));
@@ -127,6 +136,7 @@ class App : public holoscan::Application {
 
  private:
   bool is_aja_source_ = false;
+  bool is_yuan_source_ = false;
   std::string datapath = "data/ultrasound_segmentation";
 };
 

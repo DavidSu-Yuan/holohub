@@ -86,7 +86,8 @@ add_holohub_application(network_radar_pipeline DEPENDS
                         OPERATORS basic_network
                                   advanced_network)
 
-add_holohub_application(ultrasound_segmentation)
+add_holohub_application(ultrasound_segmentation DEPENDS
+                        OPERATORS OPTIONAL yuan_qcap)
 
 add_holohub_application(velodyne_lidar_app DEPENDS
                         OPERATORS velodyne_lidar
