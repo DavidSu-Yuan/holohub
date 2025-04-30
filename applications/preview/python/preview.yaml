@@ -23,7 +23,11 @@ yuan:
   width: 3840
   height: 2160
   rdma: true
+  channel: 0
   input_type: "auto" # "dvi_d", "dp", "sdi" or "hdmi"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
 
 replayer:
   basename: "surgical_video"
