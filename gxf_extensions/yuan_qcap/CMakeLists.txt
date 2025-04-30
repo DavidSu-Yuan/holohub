@@ -23,7 +23,7 @@ enable_language(CUDA)
 # Find the QCAP library and includes
 find_library(QCAP_LIBRARY
     REQUIRED
-    NAMES qcap.l4t
+    NAMES qcap
     HINTS "/opt/yuan/qcap/lib"
 )
 
