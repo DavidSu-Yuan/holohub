@@ -36,6 +36,7 @@ class App : public holoscan::Application {
   enum class Record { NONE, INPUT, VISUALIZER };
 
   void set_datapath(const std::string& path) { datapath = path; }
+  void set_imagepath(const std::string& path) { imagepath = path; }
 
   void compose() override {
     using namespace holoscan;
@@ -61,7 +62,7 @@ class App : public holoscan::Application {
       width = from_config("yuan.width").as<uint32_t>();
       height = from_config("yuan.height").as<uint32_t>();
 #ifdef YUAN_QCAP
-      source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"));
+      source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"), Arg("image_directory", imagepath));
 #endif
       source_block_size = width * height * 4 * 4;
       source_num_blocks = use_rdma ? 3 : 4;
@@ -106,6 +107,7 @@ class App : public holoscan::Application {
   std::string visualizer_name = "holoviz";
   Record record_type_ = Record::NONE;
   std::string datapath = "data/endoscopy";
+  std::string imagepath = "data/endoscopy";
 };
 
 /** Helper function to parse the command line arguments */
@@ -153,6 +155,9 @@ int main(int argc, char** argv) {
   app->set_visualizer_name(visualizer_name);
 
   if (data_path != "") app->set_datapath(data_path);
+
+  auto image_path = std::filesystem::canonical(argv[0]).parent_path();
+  app->set_imagepath(image_path);
 
   app->run();
 

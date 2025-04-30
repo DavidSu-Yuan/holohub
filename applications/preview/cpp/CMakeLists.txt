@@ -39,4 +39,12 @@ add_custom_target(preview_deps
   DEPENDS "preview.yaml"
   BYPRODUCTS "preview.yaml"
 )
+
+add_custom_target(preview_colorbar
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/colorbar.png" ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "colorbar.png"
+  BYPRODUCTS "colorbar.png"
+)
+
 add_dependencies(preview preview_deps)
+add_dependencies(preview preview_colorbar)
