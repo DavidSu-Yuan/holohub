@@ -92,6 +92,7 @@ constexpr uint32_t kDefaultPreviewSize = kDefaultWidth * kDefaultHeight * 4;
 constexpr uint32_t kDefaultGPUDirectRingQueueSize = 6;
 constexpr uint32_t kDefaultColorConvertBufferSize = 3;
 constexpr bool kDefaultRDMA = true;
+constexpr bool kDefaultMMAP = true;
 constexpr char kDefaultPixelFormatStr[] = "bgr24";
 constexpr uint32_t kDefaultPixelFormat = PIXELFORMAT_BGR24;
 // constexpr uint32_t kDefaultPixelFormat = PIXELFORMAT_YUY2;
@@ -108,10 +109,11 @@ struct PreviewFrame {
 };
 
 struct Image {
+  bool isInitialzed;
   int width;
   int height;
   int components;
-  unsigned char* data;
+  const unsigned char* data;
   CUdeviceptr cu_src;
   CUdeviceptr cu_dst;
 };
@@ -150,17 +152,25 @@ class QCAPSource : public gxf::Codelet {
   void configureInput();
   void cleanupCuda();
 
-  void loadImage(const char* filename, const unsigned char* buffer, const size_t size,
+  void createImageFromMemory(const char* name, const unsigned char* buffer,
+          unsigned int width, unsigned int height, unsigned int components, struct Image* image);
+  void loadInternalImage(const char* filename, const unsigned char* buffer, const size_t size,
                  struct Image* image);
+  void loadExternalImage(const char* filename, struct Image* image);
   void destroyImage(struct Image* image);
 
   gxf::Parameter<gxf::Handle<gxf::Transmitter>> video_buffer_output_;
   gxf::Parameter<std::string> device_specifier_;
+  gxf::Parameter<std::string> image_directory_;
+  gxf::Parameter<std::string> no_signal_image_;
+  gxf::Parameter<std::string> no_device_image_;
+  gxf::Parameter<std::string> no_sdk_image_;
   gxf::Parameter<uint32_t> channel_;
   gxf::Parameter<uint32_t> width_;
   gxf::Parameter<uint32_t> height_;
   gxf::Parameter<uint32_t> framerate_;
   gxf::Parameter<bool> use_rdma_;
+  gxf::Parameter<bool> use_mmap_;
   gxf::Parameter<std::string> pixel_format_str_;
   uint32_t pixel_format_;
   uint32_t output_pixel_format_;
@@ -189,9 +199,7 @@ class QCAPSource : public gxf::Codelet {
   unsigned long m_nRGBBufferIndex = 0;
   CUdeviceptr m_cuConvertBuffer[kDefaultColorConvertBufferSize] = {};
   unsigned long m_nConvertBufferIndex = 0;
-
-  CUcontext m_CudaContext = 0;
-
+CUcontext m_CudaContext = 0;
   struct Image m_iNoDeviceImage;
   struct Image m_iNoSignalImage;
   struct Image m_iSignalRemovedImage;

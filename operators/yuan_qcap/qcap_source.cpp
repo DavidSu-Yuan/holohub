@@ -30,7 +30,8 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
   constexpr uint32_t kDefaultWidth = 3840;
   constexpr uint32_t kDefaultHeight = 2160;
   constexpr uint32_t kDefaultFramerate = 60;
-  constexpr bool kDefaultRDMA = false;
+  constexpr bool kDefaultRDMA = true;
+  constexpr bool kDefaultMMAP = true;
   constexpr char kDefaultPixelFormat[] = "bgr24";
   constexpr char kDefaultInputType[] = "auto";
   constexpr uint32_t kDefaultMSTMode = 0;
@@ -43,11 +44,20 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
              &video_buffer_output);
   spec.param(
       device_specifier_, "device", "Device", "Device specifier.", std::string(kDefaultDevice));
+  spec.param(
+      image_directory_, "image_directory", "Directory", "Image Directory.", std::string(""));
+  spec.param(
+      no_signal_image_, "image_no_signal", "Image", "Image of no signal.", std::string(""));
+  spec.param(
+      no_device_image_, "image_no_device", "Image", "Image of no device.", std::string(""));
+  spec.param(
+      no_sdk_image_, "image_no_sdk", "Image", "Image of no sdk.", std::string(""));
   spec.param(channel_, "channel", "Channel", "Channel to use.", kDefaultChannel);
   spec.param(width_, "width", "Width", "Width of the stream.", kDefaultWidth);
   spec.param(height_, "height", "Height", "Height of the stream.", kDefaultHeight);
   spec.param(framerate_, "framerate", "Framerate", "Framerate of the stream.", kDefaultFramerate);
   spec.param(use_rdma_, "rdma", "RDMA", "Enable RDMA.", kDefaultRDMA);
+  spec.param(use_mmap_, "mmap", "MMAP", "Enable MMAP when RDMA is disable.", kDefaultMMAP);
   spec.param(pixel_format_,
              "pixel_format",
              "PixelFormat",
