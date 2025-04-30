@@ -260,6 +260,14 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
                                  "Output for the video buffer.");
   result &= registrar->parameter(
       device_specifier_, "device", "Device", "Device specifier.", std::string(kDefaultDevice));
+  result &= registrar->parameter(
+      image_directory_, "image_directory", "Directory", "Image Directory.", std::string(""));
+  result &= registrar->parameter(
+      no_signal_image_, "image_no_signal", "Image", "Image of no signal.", std::string(""));
+  result &= registrar->parameter(
+      no_device_image_, "image_no_device", "Image", "Image of no device.", std::string(""));
+  result &= registrar->parameter(
+      no_sdk_image_, "image_no_sdk", "Image", "Image of no sdk.", std::string(""));
   result &=
       registrar->parameter(channel_, "channel", "Channel", "Channel to use.", kDefaultChannel);
   result &= registrar->parameter(width_, "width", "Width", "Width of the stream.", kDefaultWidth);
@@ -268,6 +276,7 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
   result &= registrar->parameter(
       framerate_, "framerate", "Framerate", "Framerate of the stream.", kDefaultFramerate);
   result &= registrar->parameter(use_rdma_, "rdma", "RDMA", "Enable RDMA.", kDefaultRDMA);
+  result &= registrar->parameter(use_mmap_, "mmap", "MMAP", "Use MMAP when RDMA is disable.", kDefaultMMAP);
 
   result &= registrar->parameter(pixel_format_str_,
                                  "pixel_format",
@@ -292,56 +301,41 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
   return gxf::ToResultCode(result);
 }
 
-void QCAPSource::loadImage(const char* filename, const unsigned char* buffer, const size_t size,
-                           struct Image* image) {
+void QCAPSource::createImageFromMemory(const char* name, const unsigned char* buffer,
+        unsigned int width, unsigned int height, unsigned int components, struct Image* image) {
   if (image == nullptr) {
     GXF_LOG_INFO("QCAP Source: invalid parameter, image is null\n");
     return;
   }
 
   // Init
-  image->width = 0;
-  image->height = 0;
-  image->components = 0;
-  image->data = nullptr;
+  image->width = width;
+  image->height = height;
+  image->components = components;
+  image->data = buffer;
   image->cu_src = 0;
   image->cu_dst = 0;
 
-  // Loading
-  image->data = stbi_load_from_memory(buffer,
-                                      size,
-                                      reinterpret_cast<int*>(&image->width),
-                                      reinterpret_cast<int*>(&image->height),
-                                      &image->components,
-                                      0);
-
-  if (image->data == nullptr) {
-    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
-    return;
-  }
-
-  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d",
-               filename,
-               image->width,
-               image->height,
-               image->components);
+  //GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d",
+  //             name,
+  //             image->width,
+  //             image->height,
+  //             image->components);
 
   // memset(image->data, 128, image->width * image->height * image->components);
+  if (cuMemAlloc(&image->cu_src, width * height * 4) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemAlloc failed.");
+  }
+  if (cuMemAlloc(&image->cu_dst, width * height * 4) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemAlloc failed.");
+  }
+  if (cuMemcpyHtoD(image->cu_src, image->data, width * height * components) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemcpyHtoD failed.");
+  }
+
+  image->isInitialzed = true;
 
   if (image->components == 4) {
-    int width = image->width;
-    int height = image->height;
-
-    if (cuMemAlloc(&image->cu_src, width * height * 4) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemAlloc failed.");
-    }
-    if (cuMemAlloc(&image->cu_dst, width * height * 3) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemAlloc failed.");
-    }
-    if (cuMemcpyHtoD(image->cu_src, image->data, width * height * 4) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemcpyHtoD failed.");
-    }
-
     if (output_pixel_format_ == PIXELFORMAT_RGB24) {  // RGBA to RGB
       NppStatus status;
       NppiSize oSizeROI;
@@ -360,8 +354,84 @@ void QCAPSource::loadImage(const char* filename, const unsigned char* buffer, co
         GXF_LOG_INFO(
             "QCAP Source: image convert error %d %dx%d", status, video_width, video_height);
       }
+    } else {
+        if (cuMemcpyDtoD(image->cu_dst, image->cu_src, width * height * 4) != CUDA_SUCCESS) {
+            throw std::runtime_error("cuMemcpyDtoD failed.");
+        }
+    }
+  } else if (image->components == 3) {
+    if (output_pixel_format_ == PIXELFORMAT_ARGB32) {  // RGB to RGBA
+      NppStatus status;
+      NppiSize oSizeROI;
+      int video_width = width;
+      int video_height = height;
+      oSizeROI.width = video_width;
+      oSizeROI.height = video_height;
+      const int aDstOrder[4] = {0, 1, 2, 3};
+      status = nppiSwapChannels_8u_C3C4R((Npp8u*)image->cu_src,
+                                         video_width * 3,
+                                         (Npp8u*)image->cu_dst,
+                                         video_width * 4,
+                                         oSizeROI,
+                                         aDstOrder, 255);
+      if (status != 0) {
+        GXF_LOG_INFO(
+            "QCAP Source: image convert error %d %dx%d", status, video_width, video_height);
+      }
+    } else {
+        if (cuMemcpyDtoD(image->cu_dst, image->cu_src, width * height * 3) != CUDA_SUCCESS) {
+            throw std::runtime_error("cuMemcpyDtoD failed.");
+        }
     }
   }
+}
+
+void QCAPSource::loadInternalImage(const char* filename, const unsigned char* buffer, const size_t size,
+                           struct Image* image) {
+   int width = 0;
+   int height = 0;
+   int components = 0;
+
+  // Loading
+  unsigned char* data = stbi_load_from_memory(buffer,
+                                      size,
+                                      reinterpret_cast<int*>(&width),
+                                      reinterpret_cast<int*>(&height),
+                                      &components,
+                                      0);
+
+  if (data == nullptr) {
+    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
+    return;
+  }
+
+  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d %p",
+               filename, width, height, components, data);
+
+  createImageFromMemory(filename, data, width, height, components, image);
+}
+
+void QCAPSource::loadExternalImage(const char* filename, struct Image* image) {
+   int width = 0;
+   int height = 0;
+   int components = 0;
+
+  // Loading
+  unsigned char* data = stbi_load(filename,
+                                      reinterpret_cast<int*>(&width),
+                                      reinterpret_cast<int*>(&height),
+                                      &components,
+                                      0);
+
+  if (data == nullptr) {
+    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
+    return;
+  }
+
+  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d %p",
+               filename, width, height, components, data);
+
+  createImageFromMemory(filename, data, width, height, components, image);
 }
 
 void QCAPSource::destroyImage(struct Image* image) {
@@ -486,8 +556,14 @@ gxf_result_t QCAPSource::start() {
     input_type_ = INPUTTYPE_AUTO;
   }
 
-  GXF_LOG_INFO("QCAP Source: Using channel %d", (channel_.get() + 1));
+  GXF_LOG_INFO("QCAP Source: Device %s", device_specifier_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: Image directory %s", image_directory_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no signal image %s", no_signal_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no device image %s", no_device_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no sdk image %s", no_sdk_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: Using channel %d", channel_.get());
   GXF_LOG_INFO("QCAP Source: RDMA is %s", use_rdma_ ? "enabled" : "disabled");
+  GXF_LOG_INFO("QCAP Source: MMAP is %s", use_mmap_ ? "enabled" : "disabled");
   GXF_LOG_INFO("QCAP Source: Resolution %dx%d", width_.get(), height_.get());
   GXF_LOG_INFO(
       "QCAP Source: Pixel format is %s (%d)", pixel_format_str_.get().c_str(), pixel_format_);
@@ -495,15 +571,33 @@ gxf_result_t QCAPSource::start() {
 
   initCuda();
 
-  loadImage(
-      "no_device.png", (unsigned char*)no_device_png_ptr, no_device_png_size, &m_iNoDeviceImage);
-  loadImage(
-      "no_signal.png", (unsigned char*)no_signal_png_ptr, no_signal_png_size, &m_iNoSignalImage);
-  loadImage("no_sdk.png", (unsigned char*)no_sdk_png_ptr, no_sdk_png_size, &m_iNoSdkImage);
-  // loadImage("signal_remove.png",
-  //          (unsigned char*)signal_remove_png_ptr,
-  //          signal_remove_png_size,
-  //          &m_iSignalRemovedImage);
+  if (!image_directory_.get().empty()) {
+    if (!no_signal_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_signal_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoSignalImage);
+    }
+    if (!no_device_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_device_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoDeviceImage);
+    }
+    if (!no_sdk_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_sdk_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoSdkImage);
+    }
+  }
+
+  if (m_iNoDeviceImage.isInitialzed == false) {
+    loadInternalImage("no_device.png",
+      (unsigned char*)no_device_png_ptr, no_device_png_size, &m_iNoDeviceImage);
+  }
+  if (m_iNoSignalImage.isInitialzed == false) {
+    loadInternalImage("no_signal.png",
+      (unsigned char*)no_signal_png_ptr, no_signal_png_size, &m_iNoSignalImage);
+  }
+  if (m_iNoSdkImage.isInitialzed == false) {
+    loadInternalImage("no_sdk.png",
+      (unsigned char*)no_sdk_png_ptr, no_sdk_png_size, &m_iNoSdkImage);
+  }
 
   for (int i = 0; i < kDefaultColorConvertBufferSize; i++) {
     cudaMalloc((void**)&m_pRGBBUffer[i], kDefaultPreviewSize);
@@ -524,9 +618,13 @@ gxf_result_t QCAPSource::start() {
   m_nAudioInput = 0;
   m_needToChangeInputType = false;
 
-  QCAP_CREATE((char*)device_specifier_.get().c_str(), 0, nullptr, &m_hDevice, TRUE);
+  QCAP_CREATE((char*)device_specifier_.get().c_str(), channel_.get(), nullptr, &m_hDevice, TRUE);
 
-  QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
+  if (use_mmap_ && use_rdma_ == false) {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 0);
+  } else {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
+  }
   QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VO_BACKEND, 2);
 
   QCAP_REGISTER_NO_SIGNAL_DETECTED_CALLBACK(m_hDevice, on_process_no_signal_detected, this);

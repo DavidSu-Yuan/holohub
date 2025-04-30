@@ -45,11 +45,16 @@ class QCAPSourceOp : public holoscan::ops::GXFOperator {
  private:
   Parameter<holoscan::IOSpec*> video_buffer_output_;
   Parameter<std::string> device_specifier_;
+  Parameter<std::string> image_directory_;
+  Parameter<std::string> no_signal_image_;
+  Parameter<std::string> no_device_image_;
+  Parameter<std::string> no_sdk_image_;
   Parameter<uint32_t> channel_;
   Parameter<uint32_t> width_;
   Parameter<uint32_t> height_;
   Parameter<uint32_t> framerate_;
   Parameter<bool> use_rdma_;
+  Parameter<bool> use_mmap_;
   Parameter<std::string> pixel_format_;
   Parameter<std::string> input_type_;
   Parameter<uint32_t> mst_mode_;

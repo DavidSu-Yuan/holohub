@@ -63,7 +63,12 @@ class PreviewApp(Application):
 
         if self.source.lower() == "yuan":
             yuan_kwargs = self.kwargs("yuan")
-            source = QCAPSourceOp(self, name="yuan", **yuan_kwargs)
+            script_path = os.path.abspath(__file__)
+            parent_dir = os.path.dirname(script_path)
+            source = QCAPSourceOp(self,
+                name="yuan",
+                image_directory=parent_dir,
+                **yuan_kwargs)
 
             # 4 bytes/channel, 4 channels
             width = yuan_kwargs["width"]

@@ -46,6 +46,8 @@ framerate : int, optional
     Frame rate of the video stream.
 rdma : bool, optional
     Boolean indicating whether RDMA is enabled.
+mmap : bool, optional
+    Boolean indicating whether MMAP is enabled when RDMA is disabled.
 pixel_format : str, optional
     The pixel format of the video stream.
 input_type : str, optional
