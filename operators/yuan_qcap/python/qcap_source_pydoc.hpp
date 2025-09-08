@@ -56,6 +56,10 @@ mst_mode : int, optional
     The mst mode of the video stream.
 sdi2g_mode : int, optional
     The SDI 12G mode of the video stream.
+multich_mode : int, optional
+    The multi-channel mode of the video stream.
+tensor_name : int, optional
+    The tensor name of the video stream.
 name : str, optional
     The name of the operator.
 )doc")

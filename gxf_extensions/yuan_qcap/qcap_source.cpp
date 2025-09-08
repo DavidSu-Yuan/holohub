@@ -296,6 +296,12 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
   result &= registrar->parameter(
       sdi12g_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
 
+  result &= registrar->parameter(
+      multich_mode_, "multich_mode", "MultiChMode", "Multi-Channel Mode.", kDefaultMultiChMode);
+
+  result &= registrar->parameter(
+      tensor_name_, "tensor_name", "TensorName", "Name of Tensor.", std::string(""));
+
   m_status = STATUS_NO_DEVICE;
 
   return gxf::ToResultCode(result);
@@ -508,11 +514,20 @@ void QCAPSource::configureInput() {
       pixel_format_ = PIXELFORMAT_YUY2;
   } else if (nVideoInput == QCAP_INPUT_TYPE_SDI) {
     GXF_LOG_INFO("QCAP Source: SDI 12G mode is %d", sdi12g_mode_.get());
+    GXF_LOG_INFO("QCAP Source: Multi-channel mode is %d", multich_mode_.get());
 
-    if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
-      int qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
-      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
+    if (multich_mode_.get() == MULTICH_MULTI_MODE) {
+        //v4l2-ctl -i 0x80f80104
+	GXF_LOG_INFO("QCAP Source: Setting Multi-channel mode %d", multich_mode_.get());
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VIDEO_MULTICH_SUPPORT, 1);
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VIDEO_MULTICH_MASK, 0x0f);
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, 1);
+    } else {
+        if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
+            ULONG qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
+            QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
+            QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
+        }
     }
 
     // Workaround
@@ -633,6 +648,8 @@ gxf_result_t QCAPSource::start() {
 
   configureInput();
 
+  GXF_LOG_INFO("QCAP Source: tensor:%s", tensor_name_.get().c_str());
+
   if (use_rdma_) {
     for (int i = 0; i < kDefaultGPUDirectRingQueueSize; i++) {
       QCAP_ALLOC_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, &m_pGPUDirectBuffer[i], kDefaultPreviewSize);
@@ -690,7 +707,7 @@ gxf_result_t QCAPSource::tick() {
     return GXF_FAILURE;
   }
 
-  auto buffer = message.value().add<gxf::VideoBuffer>();
+  auto buffer = message.value().add<gxf::VideoBuffer>(tensor_name_.get().c_str());
   if (!buffer) {
     GXF_LOG_ERROR("QCAP Source: Failed to allocate video buffer; terminating.");
     return GXF_FAILURE;
