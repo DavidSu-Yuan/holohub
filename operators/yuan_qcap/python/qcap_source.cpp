@@ -66,7 +66,9 @@ class PyQCAPSourceOp : public QCAPSourceOp {
                  uint32_t width = 3840, uint32_t height = 2160, uint32_t framerate = 60,
                  bool rdma = true, bool mmap = true, const std::string& pixel_format = "bgr24"s,
                  const std::string& input_type = "auto"s, uint32_t mst_mode = 0,
-                 uint32_t sdi12g_mode = 0, const std::string& name = "qcap_source")
+                 uint32_t sdi12g_mode = 0, uint32_t multich_mode = 0,
+                 const std::string& tensor_name = ""s,
+		 const std::string& name = "qcap_source")
       : QCAPSourceOp(ArgList{Arg{"device", device},
                              Arg{"image_directory", image_directory},
                              Arg{"image_no_signal", image_no_signal},
@@ -81,13 +83,14 @@ class PyQCAPSourceOp : public QCAPSourceOp {
                              Arg{"pixel_format", pixel_format},
                              Arg{"input_type", input_type},
                              Arg{"mst_mode", mst_mode},
-                             Arg{"sdi12g_mode", sdi12g_mode}}) {
+                             Arg{"sdi12g_mode", sdi12g_mode},
+                             Arg{"multich_mode", multich_mode},
+                             Arg{"tensor_name", tensor_name}}) {
     add_positional_condition_and_resource_args(this, args);
     name_ = name;
     fragment_ = fragment;
     spec_ = std::make_shared<OperatorSpec>(fragment);
     setup(*spec_.get());
-    initialize();
   }
 };
 
@@ -127,6 +130,8 @@ PYBIND11_MODULE(_qcap_source, m) {
                     const std::string&,
                     uint32_t,
                     uint32_t,
+                    uint32_t,
+                    const std::string&,
                     const std::string&>(),
            "fragment"_a,
            "device"_a = "SC0710 PCI"s,
@@ -144,6 +149,8 @@ PYBIND11_MODULE(_qcap_source, m) {
            "input_type"_a = "auto"s,
            "mst_mode"_a = 0,
            "sdi12g_mode"_a = 0,
+           "multich_mode"_a = 0,
+           "tensor_name"_a = ""s,
            "name"_a = "qcap_source"s,
            doc::QCAPSourceOp::doc_QCAPSourceOp_python)
       .def_property_readonly(
