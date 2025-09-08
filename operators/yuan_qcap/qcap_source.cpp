@@ -36,6 +36,7 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
   constexpr char kDefaultInputType[] = "auto";
   constexpr uint32_t kDefaultMSTMode = 0;
   constexpr uint32_t kDefaultSDI12GMode = 0;
+  constexpr uint32_t kDefaultMultiChMode = 0;
 
   spec.param(video_buffer_output_,
              "video_buffer_output",
@@ -65,7 +66,9 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
              std::string(kDefaultPixelFormat));
   spec.param(input_type_, "input_type", "InputType", "Input Type.", std::string(kDefaultInputType));
   spec.param(mst_mode_, "mst_mode", "MSTMode", "MST Mode.", kDefaultMSTMode);
-  spec.param(mst_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
+  spec.param(sdi12g_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
+  spec.param(multich_mode_, "multich_mode", "MultiChMode", "Multi-Channel Mode.", kDefaultMultiChMode);
+  spec.param(tensor_name_, "tensor_name", "TensorName", "Name of the tensor", std::string(""));
 }
 
 void QCAPSourceOp::initialize() {

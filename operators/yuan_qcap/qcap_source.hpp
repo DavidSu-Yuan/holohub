@@ -59,6 +59,8 @@ class QCAPSourceOp : public holoscan::ops::GXFOperator {
   Parameter<std::string> input_type_;
   Parameter<uint32_t> mst_mode_;
   Parameter<uint32_t> sdi12g_mode_;
+  Parameter<uint32_t> multich_mode_;
+  Parameter<std::string> tensor_name_;
 };
 
 }  // namespace holoscan::ops

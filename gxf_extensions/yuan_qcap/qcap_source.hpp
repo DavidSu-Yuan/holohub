@@ -69,6 +69,12 @@ enum {
 } eSDI12G_MODE;
 
 enum {
+  MULTICH_DEFAULT_MODE = 0,
+  MULTICH_SINGAL_MODE = 1,
+  MULTICH_MULTI_MODE = 2,
+} eMultiCh_MODE;
+
+enum {
   INPUTTYPE_COMPOSITE = 0,
   INPUTTYPE_SVIDEO = 1,
   INPUTTYPE_HDMI = 2,
@@ -102,6 +108,7 @@ constexpr uint32_t kDefaultDisplayPortMstMode = DISPLAYPORT_SST_MODE;
 constexpr char kDefaultInputTypeStr[] = "auto";
 constexpr uint32_t kDefaultInputType = INPUTTYPE_AUTO;
 constexpr uint32_t kDefaultSDI12GMode = SDI12G_DEFAULT_MODE;
+constexpr uint32_t kDefaultMultiChMode = MULTICH_DEFAULT_MODE;
 
 struct PreviewFrame {
   unsigned char* pFrameBuffer;
@@ -178,6 +185,9 @@ class QCAPSource : public gxf::Codelet {
   gxf::Parameter<std::string> input_type_str_;
   uint32_t input_type_;
   gxf::Parameter<uint32_t> sdi12g_mode_;
+  gxf::Parameter<uint32_t> multich_mode_;
+  gxf::Parameter<uint32_t> multich_mask_;
+  gxf::Parameter<std::string> tensor_name_;
 
   volatile DeviceStatus m_status = STATUS_NO_SDK;
   volatile AutoDetectState m_autoDetectState = STATE_AUTO;
