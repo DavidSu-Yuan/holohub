@@ -88,6 +88,8 @@ add_holohub_application(prohawk_video_replayer DEPENDS OPERATORS prohawk_video_p
 
 add_holohub_application(qt_video_replayer DEPENDS OPERATORS qt_video npp_filter)
 
+add_holohub_application(quad_preview DEPENDS OPERATORS OPTIONAL yuan_qcap)
+
 add_holohub_application(realsense_visualizer DEPENDS OPERATORS realsense_camera)
 
 add_holohub_application(stereo_vision)
