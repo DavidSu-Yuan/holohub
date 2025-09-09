@@ -15,27 +15,46 @@
 # limitations under the License.
 ---
 extensions:
-# Uncomment the following extension when using deltacast as a source
-#  - lib/gxf_extensions/libgxf_videomaster.so
-# Uncomment the following extension when using yuan as source
-  - lib/gxf_extensions/libgxf_qcap_source.so
+- lib/gxf_extensions/libgxf_qcap_source.so
 
-source: "yuan" # "replayer" or "aja" or "deltacast" or "yuan"
 visualizer: "holoviz" # "holoviz" or "vtk"
-record_type: "none"  # or "input" if you want to record input video stream, or "visualizer" if you want
-                     # to record the visualizer output.
 
-external_source:
-  rdma: true
-  enable_overlay: false
-
-yuan:
-  width: 3840
-  height: 2160
+yuan_left_top:
   rdma: false
   channel: 0
-  multich_mode: 2
   input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Left_Top"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_right_top:
+  rdma: false
+  channel: 1
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Right_Top"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_left_bottom:
+  rdma: false
+  channel: 2
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Left_Bottom"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_right_bottom:
+  rdma: false
+  channel: 3
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Right_Bottom"
   #image_no_signal: "colorbar.png"
   #image_no_device: "colorbar.png"
   #image_no_sdk: "colorbar.png"
@@ -46,10 +65,6 @@ replayer:
   repeat: true    # default: false
   realtime: true  # default: true
   count: 0        # default: 0 (no frame count restriction)
-
-recorder:
-  directory: "/tmp"
-  basename: "tensor"
 
 holoviz:
   tensors:
