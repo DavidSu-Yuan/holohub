@@ -29,13 +29,42 @@ external_source:
   rdma: true
   enable_overlay: false
 
-yuan:
-  width: 3840
-  height: 2160
+yuan_left_top:
   rdma: false
   channel: 0
-  multich_mode: 2
   input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Left_Top"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_right_top:
+  rdma: false
+  channel: 1
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Right_Top"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_left_bottom:
+  rdma: false
+  channel: 2
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Left_Bottom"
+  #image_no_signal: "colorbar.png"
+  #image_no_device: "colorbar.png"
+  #image_no_sdk: "colorbar.png"
+
+yuan_right_bottom:
+  rdma: false
+  channel: 3
+  input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
+  multich_mode: 2 # 1 for single, 2 for Multi-channel
+  tensor_name: "Right_Bottom"
   #image_no_signal: "colorbar.png"
   #image_no_device: "colorbar.png"
   #image_no_sdk: "colorbar.png"
