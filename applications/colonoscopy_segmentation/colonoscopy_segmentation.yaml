@@ -15,7 +15,7 @@
 # limitations under the License.
 ---
 extensions:
-  - lib/gxf_extensions/libgxf_qcap_source.so
+  - /workspace/holohub/build/colonoscopy_segmentation/lib/gxf_extensions/libgxf_qcap_source.so
 
 replayer:  # VideoStreamReplayer
   basename: "colon_exam_720x576"
