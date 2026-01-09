@@ -24,6 +24,8 @@
 #include <cuda_runtime.h>
 #include <npp.h>
 
+#include <holoscan/utils/cuda_macros.hpp>
+
 #include <sstream>
 #include <string>
 #include <utility>
@@ -45,6 +47,14 @@ EXPAND_FILE(no_device_png)
 EXPAND_FILE(no_signal_png)
 EXPAND_FILE(no_sdk_png)
 
+extern cudaError_t convert_YUYV_10c_RGB_8s_C2C1R(
+       const void* pSrc, int srcStep,
+       void* pDst, int dstStep, int nWidth, int nHeight);
+
+extern cudaError_t convert_YUYV_10c_RGB_8s_C2C1R_sqd(
+        const int header_size, const void* pSrc, const int srcStep,
+        void* pDst, const int dstStep, const int nWidth, const int nHeight);
+
 namespace nvidia {
 namespace holoscan {
 
@@ -54,8 +64,15 @@ QRETURN on_process_signal_removed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
 
   GXF_LOG_INFO("QCAP Source: signal removed \n");
 
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_DETECTED) {
+    qcap->m_autoDetectState = STATE_AUTO;
+    qcap->m_needToChangeInputType = true;
+  }
+
   qcap->m_status = STATUS_SIGNAL_REMOVED;
   qcap->m_queue.signal(false);
+
   return QCAP_RT_OK;
 }
 
@@ -65,9 +82,92 @@ QRETURN on_process_no_signal_detected(PVOID pDevice, ULONG nVideoInput, ULONG nA
 
   GXF_LOG_INFO("QCAP Source: no signal Detected \n");
 
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_DETECTED) {
+    qcap->m_autoDetectState = STATE_AUTO;
+    qcap->m_needToChangeInputType = true;
+  }
+
   qcap->m_status = STATUS_NO_SIGNAL;
   qcap->m_queue.signal(false);
+
   return QCAP_RT_OK;
+}
+
+inline unsigned long getVideoSizeByPixelFormat(uint32_t pixel_format_, unsigned long video_width, unsigned long video_height) {
+      unsigned long video_size = 0;
+      switch (pixel_format_) {
+          case PIXELFORMAT_YUY2:
+              video_size = video_width * video_height * 2;
+              break;
+          case PIXELFORMAT_BGR24:
+              video_size = video_width * video_height * 3;
+              break;
+          case PIXELFORMAT_Y210:
+              video_size = video_width * video_height * 10 / 8 * 2; // bits
+              break;
+          case PIXELFORMAT_NV12:
+              video_size = video_width * video_height * 3 / 2;
+              break;
+      }
+      //GXF_LOG_INFO("QCAP Source: getVideoSizeByPixelFormat %08x %ldx%ld to %ld\n", pixel_format_, video_width, video_height, video_size);
+      return video_size;
+}
+
+const char* VideoInputTypeStr(ULONG nVideoInput) {
+    const char* _str = " ";
+    switch (nVideoInput) {
+        case 0:
+            _str = "COMPOSITE";
+            break;
+        case 1:
+            _str = "SVIDEO";
+            break;
+        case 2:
+            _str = "HDMI";
+            break;
+        case 3:
+            _str = "DVI_D";
+            break;
+        case 4:
+            _str = "COMPONENTS (YCBCR)";
+            break;
+        case 5:
+            _str = "DVI_A (RGB / VGA)";
+            break;
+        case 6:
+            _str = "SDI";
+            break;
+        case 7:
+            _str = "AUTO";
+            break;
+        default:
+            _str = "UNKNOW VIDEO";
+            break;
+    }
+    return _str;
+}
+
+const char* AudioInputTypeStr(ULONG nAudioInput) {
+    const char* _str = " ";
+    switch (nAudioInput) {
+        case 0:
+            _str = "EMBEDDED_AUDIO";
+            break;
+        case 1:
+            _str = "LIINE_IN";
+            break;
+        case 2:
+            _str = "SOUNDCARD_MICROPHONE";
+            break;
+        case 3:
+            _str = "SOUNDCARD_LINE_IN";
+            break;
+        default:
+            _str = "UNKNOW AUDIO";
+            break;
+    }
+    return _str;
 }
 
 QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudioInput,
@@ -79,10 +179,6 @@ QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
 
   // GXF_LOG_INFO("QCAP Source: format changed Detected");
 
-  CHAR strVideoInput[64] = {0};
-  CHAR strAudioInput[64] = {0};
-  CHAR strFrameType[64] = {0};
-
   qcap->m_nVideoWidth = nVideoWidth;
   qcap->m_nVideoHeight = nVideoHeight;
   qcap->m_bVideoIsInterleaved = bVideoIsInterleaved;
@@ -93,34 +189,35 @@ QRETURN on_process_format_changed(PVOID pDevice, ULONG nVideoInput, ULONG nAudio
   qcap->m_nVideoInput = nVideoInput;
   qcap->m_nAudioInput = nAudioInput;
 
-  if (nVideoInput == 0) { sprintf(strVideoInput, "COMPOSITE"); } //  NOLINT
-  if (nVideoInput == 1) { sprintf(strVideoInput, "SVIDEO"); } //  NOLINT
-  if (nVideoInput == 2) { sprintf(strVideoInput, "HDMI"); } //  NOLINT
-  if (nVideoInput == 3) { sprintf(strVideoInput, "DVI_D"); } //  NOLINT
-  if (nVideoInput == 4) { sprintf(strVideoInput, "COMPONENTS (YCBCR)"); } //  NOLINT
-  if (nVideoInput == 5) { sprintf(strVideoInput, "DVI_A (RGB / VGA)"); } //  NOLINT
-  if (nVideoInput == 6) { sprintf(strVideoInput, "SDI"); } //  NOLINT
-  if (nVideoInput == 7) { sprintf(strVideoInput, "AUTO"); } //  NOLINT
-  if (nAudioInput == 0) { sprintf(strAudioInput, "EMBEDDED_AUDIO"); } //  NOLINT
-  if (nAudioInput == 1) { sprintf(strAudioInput, "LINE_IN"); } //  NOLINT
-  if (nAudioInput == 2) { sprintf(strAudioInput, "SOUNDCARD_MICROPHONE"); } //  NOLINT
-  if (nAudioInput == 3) { sprintf(strAudioInput, "SOUNDCARD_LINE_IN"); } //  NOLINT
-
-  ULONG nVH = bVideoIsInterleaved == TRUE ? nVideoHeight / 2 : nVideoHeight;
-  sprintf(strFrameType, bVideoIsInterleaved == TRUE ? " I " : " P "); //  NOLINT
-
   GXF_LOG_INFO(
       "QCAP Source: INFO %ld x %ld%s @%2.3f FPS,"
       " %ld CH x %ld BITS x %ld HZ, VIDEO INPUT: %s, AUDIO INPUT: %s",
       nVideoWidth,
-      nVH,
-      strFrameType,
+      bVideoIsInterleaved == TRUE ? nVideoHeight / 2 : nVideoHeight,
+      bVideoIsInterleaved == TRUE ? " I " : " P ",
       dVideoFrameRate,
       nAudioChannels,
       nAudioBitsPerSample,
       nAudioSampleFrequency,
-      strVideoInput,
-      strAudioInput);
+      VideoInputTypeStr(nVideoInput),
+      AudioInputTypeStr(nAudioInput));
+
+  unsigned long video_size = getVideoSizeByPixelFormat(qcap->pixel_format_,
+          qcap->m_nVideoWidth, qcap->m_nVideoHeight);
+  for (int i = 0; i < kDefaultColorConvertBufferSize; i++) {
+      if (qcap->m_cuConvertBuffer[i] != 0) {
+          if (cuMemFree(qcap->m_cuConvertBuffer[i]) != CUDA_SUCCESS) {
+              throw std::runtime_error("cuMemFree failed.");
+          }
+          qcap->m_cuConvertBuffer[i] = 0;
+      }
+  }
+
+  if (qcap->input_type_ == INPUTTYPE_AUTO
+    && qcap->m_autoDetectState == STATE_AUTO) {
+    qcap->m_autoDetectState = STATE_DETECTED;
+    qcap->m_needToChangeInputType = true;
+  }
 
   qcap->m_status = STATUS_SIGNAL_LOCKED;
   qcap->m_queue.signal(true);
@@ -165,6 +262,14 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
                                  "Output for the video buffer.");
   result &= registrar->parameter(
       device_specifier_, "device", "Device", "Device specifier.", std::string(kDefaultDevice));
+  result &= registrar->parameter(
+      image_directory_, "image_directory", "Directory", "Image Directory.", std::string(""));
+  result &= registrar->parameter(
+      no_signal_image_, "image_no_signal", "Image", "Image of no signal.", std::string(""));
+  result &= registrar->parameter(
+      no_device_image_, "image_no_device", "Image", "Image of no device.", std::string(""));
+  result &= registrar->parameter(
+      no_sdk_image_, "image_no_sdk", "Image", "Image of no sdk.", std::string(""));
   result &=
       registrar->parameter(channel_, "channel", "Channel", "Channel to use.", kDefaultChannel);
   result &= registrar->parameter(width_, "width", "Width", "Width of the stream.", kDefaultWidth);
@@ -173,6 +278,7 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
   result &= registrar->parameter(
       framerate_, "framerate", "Framerate", "Framerate of the stream.", kDefaultFramerate);
   result &= registrar->parameter(use_rdma_, "rdma", "RDMA", "Enable RDMA.", kDefaultRDMA);
+  result &= registrar->parameter(use_mmap_, "mmap", "MMAP", "Use MMAP when RDMA is disable.", kDefaultMMAP);
 
   result &= registrar->parameter(pixel_format_str_,
                                  "pixel_format",
@@ -192,61 +298,52 @@ gxf_result_t QCAPSource::registerInterface(gxf::Registrar* registrar) {
   result &= registrar->parameter(
       sdi12g_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
 
+  result &= registrar->parameter(
+      multich_mode_, "multich_mode", "MultiChMode", "Multi-Channel Mode.", kDefaultMultiChMode);
+
+  result &= registrar->parameter(
+      tensor_name_, "tensor_name", "TensorName", "Name of Tensor.", std::string(""));
+
   m_status = STATUS_NO_DEVICE;
 
   return gxf::ToResultCode(result);
 }
 
-void QCAPSource::loadImage(const char* filename, const unsigned char* buffer, const size_t size,
-                           struct Image* image) {
+void QCAPSource::createImageFromMemory(const char* name, const unsigned char* buffer,
+        unsigned int width, unsigned int height, unsigned int components, struct Image* image) {
   if (image == nullptr) {
     GXF_LOG_INFO("QCAP Source: invalid parameter, image is null\n");
     return;
   }
 
   // Init
-  image->width = 0;
-  image->height = 0;
-  image->components = 0;
-  image->data = nullptr;
+  image->width = width;
+  image->height = height;
+  image->components = components;
+  image->data = buffer;
   image->cu_src = 0;
   image->cu_dst = 0;
 
-  // Loading
-  image->data = stbi_load_from_memory(buffer,
-                                      size,
-                                      reinterpret_cast<int*>(&image->width),
-                                      reinterpret_cast<int*>(&image->height),
-                                      &image->components,
-                                      0);
-
-  if (image->data == nullptr) {
-    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
-    return;
-  }
-
-  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d",
-               filename,
-               image->width,
-               image->height,
-               image->components);
+  //GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d",
+  //             name,
+  //             image->width,
+  //             image->height,
+  //             image->components);
 
   // memset(image->data, 128, image->width * image->height * image->components);
+  if (cuMemAlloc(&image->cu_src, width * height * 4) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemAlloc failed.");
+  }
+  if (cuMemAlloc(&image->cu_dst, width * height * 4) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemAlloc failed.");
+  }
+  if (cuMemcpyHtoD(image->cu_src, image->data, width * height * components) != CUDA_SUCCESS) {
+      throw std::runtime_error("cuMemcpyHtoD failed.");
+  }
+
+  image->isInitialzed = true;
 
   if (image->components == 4) {
-    int width = image->width;
-    int height = image->height;
-
-    if (cuMemAlloc(&image->cu_src, width * height * 4) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemAlloc failed.");
-    }
-    if (cuMemAlloc(&image->cu_dst, width * height * 3) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemAlloc failed.");
-    }
-    if (cuMemcpyHtoD(image->cu_src, image->data, width * height * 4) != CUDA_SUCCESS) {
-      throw std::runtime_error("cuMemcpyHtoD failed.");
-    }
-
     if (output_pixel_format_ == PIXELFORMAT_RGB24) {  // RGBA to RGB
       NppStatus status;
       NppiSize oSizeROI;
@@ -255,18 +352,96 @@ void QCAPSource::loadImage(const char* filename, const unsigned char* buffer, co
       oSizeROI.width = video_width;
       oSizeROI.height = video_height;
       const int aDstOrder[3] = {0, 1, 2};
-      status = nppiSwapChannels_8u_C4C3R((Npp8u*)image->cu_src,
+      status = nppiSwapChannels_8u_C4C3R_Ctx((Npp8u*)image->cu_src,
                                          video_width * 4,
                                          (Npp8u*)image->cu_dst,
                                          video_width * 3,
                                          oSizeROI,
-                                         aDstOrder);
+                                         aDstOrder,
+                                         *m_Npp_stream_ctx.get());
       if (status != 0) {
         GXF_LOG_INFO(
             "QCAP Source: image convert error %d %dx%d", status, video_width, video_height);
       }
+    } else {
+        if (cuMemcpyDtoD(image->cu_dst, image->cu_src, width * height * 4) != CUDA_SUCCESS) {
+            throw std::runtime_error("cuMemcpyDtoD failed.");
+        }
+    }
+  } else if (image->components == 3) {
+    if (output_pixel_format_ == PIXELFORMAT_ARGB32) {  // RGB to RGBA
+      NppStatus status;
+      NppiSize oSizeROI;
+      int video_width = width;
+      int video_height = height;
+      oSizeROI.width = video_width;
+      oSizeROI.height = video_height;
+      const int aDstOrder[4] = {0, 1, 2, 3};
+      status = nppiSwapChannels_8u_C3C4R_Ctx((Npp8u*)image->cu_src,
+                                         video_width * 3,
+                                         (Npp8u*)image->cu_dst,
+                                         video_width * 4,
+                                         oSizeROI,
+                                         aDstOrder, 255,
+                                         *m_Npp_stream_ctx.get());
+      if (status != 0) {
+        GXF_LOG_INFO(
+            "QCAP Source: image convert error %d %dx%d", status, video_width, video_height);
+      }
+    } else {
+        if (cuMemcpyDtoD(image->cu_dst, image->cu_src, width * height * 3) != CUDA_SUCCESS) {
+            throw std::runtime_error("cuMemcpyDtoD failed.");
+        }
     }
   }
+}
+
+void QCAPSource::loadInternalImage(const char* filename, const unsigned char* buffer, const size_t size,
+                           struct Image* image) {
+   int width = 0;
+   int height = 0;
+   int components = 0;
+
+  // Loading
+  unsigned char* data = stbi_load_from_memory(buffer,
+                                      size,
+                                      reinterpret_cast<int*>(&width),
+                                      reinterpret_cast<int*>(&height),
+                                      &components,
+                                      0);
+
+  if (data == nullptr) {
+    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
+    return;
+  }
+
+  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d %p",
+               filename, width, height, components, data);
+
+  createImageFromMemory(filename, data, width, height, components, image);
+}
+
+void QCAPSource::loadExternalImage(const char* filename, struct Image* image) {
+   int width = 0;
+   int height = 0;
+   int components = 0;
+
+  // Loading
+  unsigned char* data = stbi_load(filename,
+                                      reinterpret_cast<int*>(&width),
+                                      reinterpret_cast<int*>(&height),
+                                      &components,
+                                      0);
+
+  if (data == nullptr) {
+    GXF_LOG_INFO("QCAP Source: load image %s fail", filename);
+    return;
+  }
+
+  GXF_LOG_INFO("QCAP Source: load image %s %dx%d %d %p",
+               filename, width, height, components, data);
+
+  createImageFromMemory(filename, data, width, height, components, image);
 }
 
 void QCAPSource::destroyImage(struct Image* image) {
@@ -288,6 +463,30 @@ void QCAPSource::initCuda() {
   if (cuCtxPushCurrent(m_CudaContext) != CUDA_SUCCESS) {
     throw std::runtime_error("cuDevicePrimaryCtxRetain failed.");
   }
+
+  m_Npp_stream_ctx = std::make_shared<NppStreamContext>();
+#if CUDART_VERSION >= 13000
+  // Workaround pending proper NPP support to get stream context in CUDA 13.0+
+  int device = 0;
+  HOLOSCAN_CUDA_CALL_THROW_ERROR(cudaGetDevice(&device), "Failed to get CUDA device");
+
+  cudaDeviceProp prop{};
+  HOLOSCAN_CUDA_CALL_THROW_ERROR(cudaGetDeviceProperties(&prop, device),
+                                 "Failed to get CUDA device properties");
+
+  m_Npp_stream_ctx->nCudaDeviceId = device;
+  m_Npp_stream_ctx->nMultiProcessorCount = prop.multiProcessorCount;
+  m_Npp_stream_ctx->nMaxThreadsPerMultiProcessor = prop.maxThreadsPerMultiProcessor;
+  m_Npp_stream_ctx->nMaxThreadsPerBlock = prop.maxThreadsPerBlock;
+  m_Npp_stream_ctx->nSharedMemPerBlock = prop.sharedMemPerBlock;
+  m_Npp_stream_ctx->nCudaDevAttrComputeCapabilityMajor = prop.major;
+  m_Npp_stream_ctx->nCudaDevAttrComputeCapabilityMinor = prop.minor;
+#else
+  auto nppStatus = nppGetStreamContext(m_Npp_stream_ctx.get());
+  if (NPP_SUCCESS != nppStatus) {
+    throw std::runtime_error("Failed to get NPP CUDA stream context");
+  }
+#endif
 }
 
 void QCAPSource::cleanupCuda() {
@@ -303,11 +502,87 @@ void QCAPSource::cleanupCuda() {
   }
 }
 
+void QCAPSource::configureInput() {
+  ULONG nSelectedInputType = QCAP_INPUT_TYPE_AUTO;
+  // QCAP_SET_AUDIO_SOUND_RENDERER(m_hDevice, 0);
+  if (input_type_ == INPUTTYPE_AUTO) {
+      if (m_autoDetectState == STATE_AUTO) {
+          nSelectedInputType = QCAP_INPUT_TYPE_AUTO;
+      } else if (m_autoDetectState == STATE_DETECTED) {
+          nSelectedInputType = m_nVideoInput;
+      }
+  } else {
+    m_autoDetectState = STATE_FORCED;
+    if (input_type_ == INPUTTYPE_DVI_D) {
+        nSelectedInputType = QCAP_INPUT_TYPE_DVI_D;
+    } else if (input_type_ == INPUTTYPE_DISPLAY_PORT) {
+      GXF_LOG_INFO("QCAP Source: DP MST mode is %d", mst_mode_.get());
+      if (mst_mode_ == DISPLAYPORT_MST_MODE) {
+        nSelectedInputType = QCAP_INPUT_TYPE_DISPLAY_PORT_MST;
+      } else {
+        nSelectedInputType = QCAP_INPUT_TYPE_DISPLAY_PORT_SST;
+      }
+    } else if (input_type_ == INPUTTYPE_SDI) {
+      nSelectedInputType = QCAP_INPUT_TYPE_SDI;
+    } else if (input_type_ == INPUTTYPE_HDMI) {
+      nSelectedInputType = QCAP_INPUT_TYPE_HDMI;
+    } else {  // INPUTTYPE_AUTO or Default
+      /* do nothing, we don't change input type. Let driver select it. */
+    }
+  }
+  GXF_LOG_INFO("QCAP Source: Current Input type is %s(%ld) state %d",
+          VideoInputTypeStr(nSelectedInputType), nSelectedInputType,
+          m_autoDetectState);
+  QCAP_SET_VIDEO_INPUT(m_hDevice, nSelectedInputType);
+
+  ULONG nVideoInput = 0;
+  QCAP_GET_VIDEO_INPUT(m_hDevice, &nVideoInput);
+  GXF_LOG_INFO("QCAP Source: Use input %lu", nVideoInput);
+  if (input_type_ == INPUTTYPE_AUTO) {
+      pixel_format_ = PIXELFORMAT_YUY2;
+  } else if (nVideoInput == QCAP_INPUT_TYPE_SDI) {
+    GXF_LOG_INFO("QCAP Source: SDI 12G mode is %d", sdi12g_mode_.get());
+    GXF_LOG_INFO("QCAP Source: Multi-channel mode is %d", multich_mode_.get());
+
+    if (multich_mode_.get() == MULTICH_MULTI_MODE) {
+        //v4l2-ctl -i 0x80f80104
+	GXF_LOG_INFO("QCAP Source: Setting Multi-channel mode %d", multich_mode_.get());
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VIDEO_MULTICH_SUPPORT, 1);
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VIDEO_MULTICH_MASK, 0x0f);
+        QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, 1);
+    } else {
+        if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
+            ULONG qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
+            QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
+            QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
+        }
+    }
+
+    // Workaround
+    if (pixel_format_ == PIXELFORMAT_BGR24) {
+      GXF_LOG_INFO("QCAP Source: SDI only support YUY2 or NV12, switch to yuy2");
+      pixel_format_ = PIXELFORMAT_YUY2;
+    }
+  }
+  QCAP_SET_VIDEO_DEFAULT_OUTPUT_FORMAT(m_hDevice, pixel_format_, 0, 0, 0, 0);
+
+  if (m_autoDetectState == STATE_DETECTED || m_autoDetectState == STATE_FORCED) {
+    QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, on_process_video_preview, this);
+    QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, on_process_audio_preview, this);
+  } else {
+    QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, nullptr, this);
+    QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, nullptr, this);
+  }
+}
+
 gxf_result_t QCAPSource::start() {
+
   if (pixel_format_str_.get().compare("yuy2") == 0) {
     pixel_format_ = PIXELFORMAT_YUY2;
   } else if (pixel_format_str_.get().compare("nv12") == 0) {
     pixel_format_ = PIXELFORMAT_NV12;
+  } else if (pixel_format_str_.get().compare("y210") == 0) {
+    pixel_format_ = PIXELFORMAT_Y210;
   } else {
     pixel_format_ = PIXELFORMAT_BGR24;
   }
@@ -324,8 +599,14 @@ gxf_result_t QCAPSource::start() {
     input_type_ = INPUTTYPE_AUTO;
   }
 
-  GXF_LOG_INFO("QCAP Source: Using channel %d", (channel_.get() + 1));
+  GXF_LOG_INFO("QCAP Source: Device %s", device_specifier_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: Image directory %s", image_directory_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no signal image %s", no_signal_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no device image %s", no_device_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: no sdk image %s", no_sdk_image_.get().c_str());
+  GXF_LOG_INFO("QCAP Source: Using channel %d", channel_.get());
   GXF_LOG_INFO("QCAP Source: RDMA is %s", use_rdma_ ? "enabled" : "disabled");
+  GXF_LOG_INFO("QCAP Source: MMAP is %s", use_mmap_ ? "enabled" : "disabled");
   GXF_LOG_INFO("QCAP Source: Resolution %dx%d", width_.get(), height_.get());
   GXF_LOG_INFO(
       "QCAP Source: Pixel format is %s (%d)", pixel_format_str_.get().c_str(), pixel_format_);
@@ -333,81 +614,79 @@ gxf_result_t QCAPSource::start() {
 
   initCuda();
 
-  loadImage(
-      "no_device.png", (unsigned char*)no_device_png_ptr, no_device_png_size, &m_iNoDeviceImage);
-  loadImage(
-      "no_signal.png", (unsigned char*)no_signal_png_ptr, no_signal_png_size, &m_iNoSignalImage);
-  loadImage("no_sdk.png", (unsigned char*)no_sdk_png_ptr, no_sdk_png_size, &m_iNoSdkImage);
-  // loadImage("signal_remove.png",
-  //          (unsigned char*)signal_remove_png_ptr,
-  //          signal_remove_png_size,
-  //          &m_iSignalRemovedImage);
+  if (!image_directory_.get().empty()) {
+    if (!no_signal_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_signal_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoSignalImage);
+    }
+    if (!no_device_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_device_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoDeviceImage);
+    }
+    if (!no_sdk_image_.get().empty()) {
+        std::string full_path = image_directory_.get() + std::string("/") + no_sdk_image_.get();
+        loadExternalImage(full_path.c_str(), &m_iNoSdkImage);
+    }
+  }
+
+  if (m_iNoDeviceImage.isInitialzed == false) {
+    loadInternalImage("no_device.png",
+      (unsigned char*)no_device_png_ptr, no_device_png_size, &m_iNoDeviceImage);
+  }
+  if (m_iNoSignalImage.isInitialzed == false) {
+    loadInternalImage("no_signal.png",
+      (unsigned char*)no_signal_png_ptr, no_signal_png_size, &m_iNoSignalImage);
+  }
+  if (m_iNoSdkImage.isInitialzed == false) {
+    loadInternalImage("no_sdk.png",
+      (unsigned char*)no_sdk_png_ptr, no_sdk_png_size, &m_iNoSdkImage);
+  }
 
   for (int i = 0; i < kDefaultColorConvertBufferSize; i++) {
     cudaMalloc((void**)&m_pRGBBUffer[i], kDefaultPreviewSize);
   }
 
-  QCAP_CREATE((char*)device_specifier_.get().c_str(), 0, nullptr, &m_hDevice, TRUE);
+  m_status = STATUS_NO_SDK;
+  m_autoDetectState = STATE_AUTO;
+  m_hDevice = nullptr;
+  m_bHasSignal = false;
+  m_nVideoWidth = 0;
+  m_nVideoHeight = 0;
+  m_bVideoIsInterleaved = false;
+  m_dVideoFrameRate = 0.0f;
+  m_nAudioChannels = 0;
+  m_nAudioBitsPerSample = 0;
+  m_nAudioSampleFrequency = 0;
+  m_nVideoInput = 0;
+  m_nAudioInput = 0;
+  m_needToChangeInputType = false;
 
-  QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
+  QCAP_CREATE((char*)device_specifier_.get().c_str(), channel_.get(), nullptr, &m_hDevice, TRUE);
+
+  if (use_mmap_ && use_rdma_ == false) {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 0);
+  } else {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
+  }
   QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VO_BACKEND, 2);
-
-  // QCAP_SET_AUDIO_SOUND_RENDERER(m_hDevice, 0);
 
   QCAP_REGISTER_NO_SIGNAL_DETECTED_CALLBACK(m_hDevice, on_process_no_signal_detected, this);
   QCAP_REGISTER_SIGNAL_REMOVED_CALLBACK(m_hDevice, on_process_signal_removed, this);
   QCAP_REGISTER_FORMAT_CHANGED_CALLBACK(m_hDevice, on_process_format_changed, this);
-  QCAP_REGISTER_VIDEO_PREVIEW_CALLBACK(m_hDevice, on_process_video_preview, this);
-  QCAP_REGISTER_AUDIO_PREVIEW_CALLBACK(m_hDevice, on_process_audio_preview, this);
 
-  if (input_type_ == INPUTTYPE_DVI_D) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DVI_D);
-  } else if (input_type_ == INPUTTYPE_DISPLAY_PORT) {
-    GXF_LOG_INFO("QCAP Source: DP MST mode is %d", mst_mode_.get());
-    if (mst_mode_ == DISPLAYPORT_MST_MODE) {
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DISPLAY_PORT_MST);
-    } else {
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_DISPLAY_PORT_SST);
-    }
-  } else if (input_type_ == INPUTTYPE_SDI) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
-  } else if (input_type_ == INPUTTYPE_HDMI) {
-    QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_HDMI);
-  } else {  // INPUTTYPE_AUTO or Default
-    /* do nothing, we don't change input type. Let driver select it. */
-  }
+  configureInput();
 
-  ULONG nVideoInput = 0;
-  QCAP_GET_VIDEO_INPUT(m_hDevice, &nVideoInput);
-  GXF_LOG_INFO("QCAP Source: Use input %lu", nVideoInput);
-  if (nVideoInput == QCAP_INPUT_TYPE_SDI) {
-    GXF_LOG_INFO("QCAP Source: SDI 12G mode is %d", sdi12g_mode_.get());
-
-    if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
-      int qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
-      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
-      QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
-    }
-
-    // Workaround
-    if (pixel_format_ == PIXELFORMAT_BGR24) {
-      GXF_LOG_INFO("QCAP Source: SDI only support YUY2 or NV12, switch to yuy2");
-      pixel_format_ = PIXELFORMAT_YUY2;
-    }
-  }
-  QCAP_SET_VIDEO_DEFAULT_OUTPUT_FORMAT(m_hDevice, pixel_format_, width_.get(), height_.get(), 0, 0);
+  GXF_LOG_INFO("QCAP Source: tensor:%s", tensor_name_.get().c_str());
 
   if (use_rdma_) {
     for (int i = 0; i < kDefaultGPUDirectRingQueueSize; i++) {
-      cudaMalloc((void**)&m_pGPUDirectBuffer[i], kDefaultPreviewSize);
-      // QCAP_ALLOC_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, &m_pGPUDirectBuffer[i],
-      // kDefaultPreviewSize);
+      QCAP_ALLOC_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, &m_pGPUDirectBuffer[i], kDefaultPreviewSize);
       QCAP_BIND_VIDEO_GPUDIRECT_PREVIEW_BUFFER(
-          m_hDevice, i, m_pGPUDirectBuffer[i], kDefaultPreviewSize);
+              m_hDevice, i, m_pGPUDirectBuffer[i], kDefaultPreviewSize);
       GXF_LOG_INFO("QCAP Source: Allocate gpu buffer id:%d, pointer:%p size:%d",
-                   i,
-                   m_pGPUDirectBuffer[i],
-                   kDefaultPreviewSize);
+              i,
+              m_pGPUDirectBuffer[i],
+              kDefaultPreviewSize);
     }
   }
 
@@ -426,8 +705,8 @@ gxf_result_t QCAPSource::stop() {
       for (int i = 0; i < kDefaultGPUDirectRingQueueSize; i++) {
         QCAP_UNBIND_VIDEO_GPUDIRECT_PREVIEW_BUFFER(
             m_hDevice, i, m_pGPUDirectBuffer[i], kDefaultPreviewSize);
-        // QCAP_FREE_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, m_pGPUDirectBuffer[i],
-        // kDefaultPreviewSize);
+        QCAP_FREE_VIDEO_GPUDIRECT_PREVIEW_BUFFER(m_hDevice, m_pGPUDirectBuffer[i],
+            kDefaultPreviewSize);
         cudaFree((void**)&m_pGPUDirectBuffer[i]);
       }
     }
@@ -456,10 +735,25 @@ gxf_result_t QCAPSource::tick() {
     return GXF_FAILURE;
   }
 
-  auto buffer = message.value().add<gxf::VideoBuffer>();
+  auto buffer = message.value().add<gxf::VideoBuffer>(tensor_name_.get().c_str());
   if (!buffer) {
     GXF_LOG_ERROR("QCAP Source: Failed to allocate video buffer; terminating.");
     return GXF_FAILURE;
+  }
+
+  if (m_needToChangeInputType) {
+    // 1. stop qcap first.
+    QCAP_STOP(m_hDevice);
+
+    // 2. configure to new input type.
+    configureInput();
+
+    // 3. run qcap again.
+    QCAP_RUN(m_hDevice);
+
+    // 4. back to normal procedure
+    m_needToChangeInputType = false;
+    return GXF_SUCCESS;
   }
 
   // GXF_LOG_ERROR("QCAP Source: status %d in tick", m_status);
@@ -488,6 +782,7 @@ gxf_result_t QCAPSource::tick() {
     gxf::VideoTypeTraits<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> video_type;
     gxf::VideoFormatSize<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> color_format;
     auto color_planes = color_format.getDefaultColorPlanes(out_width, out_height);
+    color_planes[0].stride = out_width * 3;
     gxf::VideoBufferInfo info{(uint32_t)out_width,
                               (uint32_t)out_height,
                               video_type.value,
@@ -512,7 +807,8 @@ gxf_result_t QCAPSource::tick() {
   qcap_av_frame_t* pAVFrame = (qcap_av_frame_t*)QCAP_RCBUFFER_LOCK_DATA(pRCBuffer);
 
   PVOID frame = pAVFrame->pData[0];
-  NppStatus status;
+  NppStatus status = NPP_NO_ERROR;
+  cudaError_t cuda_status = cudaSuccess;
   NppiSize oSizeROI;
   int video_width = m_nVideoWidth;
   int video_height = m_nVideoHeight;
@@ -530,23 +826,76 @@ gxf_result_t QCAPSource::tick() {
   GXF_LOG_INFO("video preview cb frame: %p type: %d\n", pAVFrame->pData[0], attributes.type);
 #endif
 
+  unsigned long video_size = getVideoSizeByPixelFormat(pixel_format_,
+          m_nVideoWidth, m_nVideoHeight);
+  for (int i = 0; i < kDefaultColorConvertBufferSize; i++) {
+      if (m_cuConvertBuffer[i] == 0 && video_size != 0) {
+          cuMemAlloc(&(m_cuConvertBuffer[i]), video_size);
+          //GXF_LOG_INFO("QCAP Source: convert buffer %lld %ld\n", m_cuConvertBuffer[i], video_size);
+      }
+  }
+
+  m_nConvertBufferIndex = (m_nConvertBufferIndex + 1) % kDefaultColorConvertBufferSize;
+  CUdeviceptr convert_buf = m_cuConvertBuffer[m_nConvertBufferIndex];
+  unsigned char *video_src = nullptr;
   storage_type = gxf::MemoryStorageType::kDevice;
   if (pixel_format_ == PIXELFORMAT_YUY2 &&
       output_pixel_format_ == PIXELFORMAT_RGB24) {  // YUY2 to RGB
-    status = nppiYCbCr422ToRGB_8u_C2C3R(
-        pAVFrame->pData[0], video_width * 2, (Npp8u*)frame, video_width * 3, oSizeROI);
+    if (use_rdma_ == false) {
+        cuMemcpyHtoD(convert_buf, pAVFrame->pData[0], video_size);
+        video_src = (unsigned char*) convert_buf;
+    } else {
+        video_src = pAVFrame->pData[0];
+    }
+    status = nppiYCbCr422ToRGB_8u_C2C3R_Ctx(
+        video_src, video_width * 2, (Npp8u*)frame, video_width * 3, oSizeROI, *m_Npp_stream_ctx.get());
+    storage_type = gxf::MemoryStorageType::kDevice;
   } else if (pixel_format_ == PIXELFORMAT_BGR24 &&
              output_pixel_format_ == PIXELFORMAT_RGB24) {  // Default is BGR. BGR to RGB
     const int aDstOrder[3] = {2, 1, 0};
-    status = nppiSwapChannels_8u_C3R(
-        pAVFrame->pData[0], video_width * 3, (Npp8u*)frame, video_width * 3, oSizeROI, aDstOrder);
+    if (use_rdma_ == false) {
+        cuMemcpyHtoD(convert_buf, pAVFrame->pData[0], video_size);
+        video_src = (unsigned char*) convert_buf;
+    } else {
+        video_src = pAVFrame->pData[0];
+    }
+    status = nppiSwapChannels_8u_C3R_Ctx(
+        video_src, video_width * 3, (Npp8u*)frame, video_width * 3, oSizeROI, aDstOrder, *m_Npp_stream_ctx.get());
+    storage_type = gxf::MemoryStorageType::kDevice;
+  } else if (pixel_format_ == PIXELFORMAT_Y210 &&
+             output_pixel_format_ == PIXELFORMAT_RGB24) {  // Default is BGR. BGR to RGB
+    if (use_rdma_ == false) {
+        cuMemcpyHtoD(convert_buf, pAVFrame->pData[0], video_size);
+        video_src = (unsigned char*) convert_buf;
+        cuda_status = convert_YUYV_10c_RGB_8s_C2C1R(
+                video_src, video_width / 2 * 5, (Npp8u*)frame, video_width * 3, video_width, video_height);
+        storage_type = gxf::MemoryStorageType::kDevice;
+    } else {
+        video_src = pAVFrame->pData[0];
+        if (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE) { // SQD with header
+            cuda_status = convert_YUYV_10c_RGB_8s_C2C1R_sqd(
+                    10, video_src, (video_width / 4 * 5) + 16, (Npp8u*)frame, video_width * 3, video_width, video_height);
+        } else {
+            cuda_status = convert_YUYV_10c_RGB_8s_C2C1R(
+                    video_src, video_width / 2 * 5, (Npp8u*)frame, video_width * 3, video_width, video_height);
+        }
+        storage_type = gxf::MemoryStorageType::kDevice;
+    }
   } else if (pixel_format_ == PIXELFORMAT_NV12 &&
              output_pixel_format_ == PIXELFORMAT_RGB24) {  // NV12 to RGB
     const int aDstOrder[3] = {2, 1, 0};
     Npp8u* input[2];
-    input[0] = (Npp8u*)pAVFrame->pData[0];
-    input[1] = (Npp8u*)pAVFrame->pData[1];
-    status = nppiNV12ToRGB_8u_P2C3R(input, video_width, (Npp8u*)frame, video_width * 3, oSizeROI);
+    if (use_rdma_ == false) {
+        cuMemcpyHtoD(convert_buf, pAVFrame->pData[0], video_size);
+        video_src = (unsigned char*) convert_buf;
+        input[0] = (Npp8u*)video_src;
+        input[1] = (Npp8u*)(video_src + video_width * video_height);
+    } else {
+        input[0] = (Npp8u*)pAVFrame->pData[0];
+        input[1] = (Npp8u*)pAVFrame->pData[1];
+    }
+    status = nppiNV12ToRGB_8u_P2C3R_Ctx(input, video_width, (Npp8u*)frame, video_width * 3, oSizeROI, *m_Npp_stream_ctx.get());
+    storage_type = gxf::MemoryStorageType::kDevice;
   } else {
     status = NPP_ERROR;
   }
@@ -554,11 +903,14 @@ gxf_result_t QCAPSource::tick() {
   QCAP_RCBUFFER_UNLOCK_DATA(pRCBuffer);
   QCAP_RCBUFFER_RELEASE(pRCBuffer);
 
-  if (status != 0) {
-    GXF_LOG_INFO("QCAP Source: convert error %d buffer %p(%08x) to %p(%08x) %dx%d\n",
+  if (status != NPP_NO_ERROR || cuda_status != cudaSuccess) {
+    GXF_LOG_INFO("QCAP Source: convert error %d %d buffer %p(%08x) convert %llx %ld to %p(%08x) %dx%d\n",
                  status,
+                 cuda_status,
                  pAVFrame->pData[0],
                  pixel_format_,
+                 convert_buf,
+                 video_size,
                  frame,
                  output_pixel_format_,
                  video_width,
@@ -573,6 +925,7 @@ gxf_result_t QCAPSource::tick() {
   gxf::VideoTypeTraits<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> video_type;
   gxf::VideoFormatSize<gxf::VideoFormat::GXF_VIDEO_FORMAT_RGB> color_format;
   auto color_planes = color_format.getDefaultColorPlanes(out_width, out_height);
+  color_planes[0].stride = out_width * 3;
   gxf::VideoBufferInfo info{(uint32_t)out_width,
                             (uint32_t)out_height,
                             video_type.value,

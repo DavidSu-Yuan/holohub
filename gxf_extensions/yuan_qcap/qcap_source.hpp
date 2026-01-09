@@ -22,6 +22,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include <npp.h>
 
 #include "qcap_queue.hpp"
 
@@ -37,6 +38,7 @@ enum {
   PIXELFORMAT_BGR24 = 1,          //   0xRRGGBB -> B0 G0 R0 B1 G1 R1 B2 G2 R2 ... >>
   PIXELFORMAT_ARGB32 = 2,         // 0xAABBGGRR -> R0 G0 B0 A0 R1 G1 B1 A1 R2 G2 B2 A2 ... >>
   PIXELFORMAT_ABGR32 = 3,         // 0xAARRGGBB -> B0 G0 R0 A0 B1 G1 R1 A1 B2 G2 R2 A2 ... >>
+  PIXELFORMAT_Y210 = 0x30313259,  // 0x30313259 -> MAKEFOURCC('Y', '2', '1', '0') (4:2:2 | 10 BITS)
   PIXELFORMAT_Y416 = 0x36313459,  // 0x36313459 -> MAKEFOURCC('Y', '4', '1', '6') (4:4:4 | 10 BITS)
   PIXELFORMAT_P210 = 0x30313250,  // 0x30313250 -> MAKEFOURCC('P', '2', '1', '0') (4:2:2 | 10 BITS)
   PIXELFORMAT_P010 = 0x30313050,  // 0x30313050 -> MAKEFOURCC('P', '0', '1', '0') (4:2:0 | 10 BITS)
@@ -68,6 +70,12 @@ enum {
 } eSDI12G_MODE;
 
 enum {
+  MULTICH_DEFAULT_MODE = 0,
+  MULTICH_SINGAL_MODE = 1,
+  MULTICH_MULTI_MODE = 2,
+} eMultiCh_MODE;
+
+enum {
   INPUTTYPE_COMPOSITE = 0,
   INPUTTYPE_SVIDEO = 1,
   INPUTTYPE_HDMI = 2,
@@ -91,6 +99,7 @@ constexpr uint32_t kDefaultPreviewSize = kDefaultWidth * kDefaultHeight * 4;
 constexpr uint32_t kDefaultGPUDirectRingQueueSize = 6;
 constexpr uint32_t kDefaultColorConvertBufferSize = 3;
 constexpr bool kDefaultRDMA = true;
+constexpr bool kDefaultMMAP = true;
 constexpr char kDefaultPixelFormatStr[] = "bgr24";
 constexpr uint32_t kDefaultPixelFormat = PIXELFORMAT_BGR24;
 // constexpr uint32_t kDefaultPixelFormat = PIXELFORMAT_YUY2;
@@ -100,6 +109,7 @@ constexpr uint32_t kDefaultDisplayPortMstMode = DISPLAYPORT_SST_MODE;
 constexpr char kDefaultInputTypeStr[] = "auto";
 constexpr uint32_t kDefaultInputType = INPUTTYPE_AUTO;
 constexpr uint32_t kDefaultSDI12GMode = SDI12G_DEFAULT_MODE;
+constexpr uint32_t kDefaultMultiChMode = MULTICH_DEFAULT_MODE;
 
 struct PreviewFrame {
   unsigned char* pFrameBuffer;
@@ -107,10 +117,11 @@ struct PreviewFrame {
 };
 
 struct Image {
+  bool isInitialzed;
   int width;
   int height;
   int components;
-  unsigned char* data;
+  const unsigned char* data;
   CUdeviceptr cu_src;
   CUdeviceptr cu_dst;
 };
@@ -121,6 +132,12 @@ enum DeviceStatus {
   STATUS_NO_SIGNAL,
   STATUS_SIGNAL_REMOVED,
   STATUS_SIGNAL_LOCKED,
+};
+
+enum AutoDetectState {
+  STATE_AUTO,
+  STATE_FORCED,
+  STATE_DETECTED,
 };
 
 /// @brief Video input codelet for use with capture cards.
@@ -139,19 +156,29 @@ class QCAPSource : public gxf::Codelet {
   gxf_result_t stop() override;
 
   void initCuda();
+  void cleanupInputInfo();
+  void configureInput();
   void cleanupCuda();
 
-  void loadImage(const char* filename, const unsigned char* buffer, const size_t size,
+  void createImageFromMemory(const char* name, const unsigned char* buffer,
+          unsigned int width, unsigned int height, unsigned int components, struct Image* image);
+  void loadInternalImage(const char* filename, const unsigned char* buffer, const size_t size,
                  struct Image* image);
+  void loadExternalImage(const char* filename, struct Image* image);
   void destroyImage(struct Image* image);
 
   gxf::Parameter<gxf::Handle<gxf::Transmitter>> video_buffer_output_;
   gxf::Parameter<std::string> device_specifier_;
+  gxf::Parameter<std::string> image_directory_;
+  gxf::Parameter<std::string> no_signal_image_;
+  gxf::Parameter<std::string> no_device_image_;
+  gxf::Parameter<std::string> no_sdk_image_;
   gxf::Parameter<uint32_t> channel_;
   gxf::Parameter<uint32_t> width_;
   gxf::Parameter<uint32_t> height_;
   gxf::Parameter<uint32_t> framerate_;
   gxf::Parameter<bool> use_rdma_;
+  gxf::Parameter<bool> use_mmap_;
   gxf::Parameter<std::string> pixel_format_str_;
   uint32_t pixel_format_;
   uint32_t output_pixel_format_;
@@ -159,9 +186,14 @@ class QCAPSource : public gxf::Codelet {
   gxf::Parameter<std::string> input_type_str_;
   uint32_t input_type_;
   gxf::Parameter<uint32_t> sdi12g_mode_;
+  gxf::Parameter<uint32_t> multich_mode_;
+  gxf::Parameter<uint32_t> multich_mask_;
+  gxf::Parameter<std::string> tensor_name_;
 
   volatile DeviceStatus m_status = STATUS_NO_SDK;
+  volatile AutoDetectState m_autoDetectState = STATE_AUTO;
   void* m_hDevice = nullptr;
+  bool m_bHasSignal = false;
   unsigned long m_nVideoWidth = 0;
   unsigned long m_nVideoHeight = 0;
   bool m_bVideoIsInterleaved = false;
@@ -172,11 +204,14 @@ class QCAPSource : public gxf::Codelet {
   unsigned long m_nVideoInput = 0;
   unsigned long m_nAudioInput = 0;
   unsigned char* m_pGPUDirectBuffer[kDefaultGPUDirectRingQueueSize] = {};
+  bool m_needToChangeInputType = false;
 
   unsigned char* m_pRGBBUffer[kDefaultColorConvertBufferSize] = {};
   unsigned long m_nRGBBufferIndex = 0;
-
-  CUcontext m_CudaContext = nullptr;
+  CUdeviceptr m_cuConvertBuffer[kDefaultColorConvertBufferSize] = {};
+  unsigned long m_nConvertBufferIndex = 0;
+  CUcontext m_CudaContext = 0;
+  std::shared_ptr<NppStreamContext> m_Npp_stream_ctx ;
 
   struct Image m_iNoDeviceImage;
   struct Image m_iNoSignalImage;

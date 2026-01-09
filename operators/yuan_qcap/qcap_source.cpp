@@ -30,11 +30,13 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
   constexpr uint32_t kDefaultWidth = 3840;
   constexpr uint32_t kDefaultHeight = 2160;
   constexpr uint32_t kDefaultFramerate = 60;
-  constexpr bool kDefaultRDMA = false;
+  constexpr bool kDefaultRDMA = true;
+  constexpr bool kDefaultMMAP = true;
   constexpr char kDefaultPixelFormat[] = "bgr24";
   constexpr char kDefaultInputType[] = "auto";
   constexpr uint32_t kDefaultMSTMode = 0;
   constexpr uint32_t kDefaultSDI12GMode = 0;
+  constexpr uint32_t kDefaultMultiChMode = 0;
 
   spec.param(video_buffer_output_,
              "video_buffer_output",
@@ -43,11 +45,20 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
              &video_buffer_output);
   spec.param(
       device_specifier_, "device", "Device", "Device specifier.", std::string(kDefaultDevice));
+  spec.param(
+      image_directory_, "image_directory", "Directory", "Image Directory.", std::string(""));
+  spec.param(
+      no_signal_image_, "image_no_signal", "Image", "Image of no signal.", std::string(""));
+  spec.param(
+      no_device_image_, "image_no_device", "Image", "Image of no device.", std::string(""));
+  spec.param(
+      no_sdk_image_, "image_no_sdk", "Image", "Image of no sdk.", std::string(""));
   spec.param(channel_, "channel", "Channel", "Channel to use.", kDefaultChannel);
   spec.param(width_, "width", "Width", "Width of the stream.", kDefaultWidth);
   spec.param(height_, "height", "Height", "Height of the stream.", kDefaultHeight);
   spec.param(framerate_, "framerate", "Framerate", "Framerate of the stream.", kDefaultFramerate);
   spec.param(use_rdma_, "rdma", "RDMA", "Enable RDMA.", kDefaultRDMA);
+  spec.param(use_mmap_, "mmap", "MMAP", "Enable MMAP when RDMA is disable.", kDefaultMMAP);
   spec.param(pixel_format_,
              "pixel_format",
              "PixelFormat",
@@ -55,7 +66,9 @@ void QCAPSourceOp::setup(OperatorSpec& spec) {
              std::string(kDefaultPixelFormat));
   spec.param(input_type_, "input_type", "InputType", "Input Type.", std::string(kDefaultInputType));
   spec.param(mst_mode_, "mst_mode", "MSTMode", "MST Mode.", kDefaultMSTMode);
-  spec.param(mst_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
+  spec.param(sdi12g_mode_, "sdi12g_mode", "SDI12GMode", "SDI 12G Mode.", kDefaultSDI12GMode);
+  spec.param(multich_mode_, "multich_mode", "MultiChMode", "Multi-Channel Mode.", kDefaultMultiChMode);
+  spec.param(tensor_name_, "tensor_name", "TensorName", "Name of the tensor", std::string(""));
 }
 
 void QCAPSourceOp::initialize() {
