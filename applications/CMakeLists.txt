@@ -128,7 +128,8 @@ add_holohub_application(psd_pipeline DEPENDS
                                   data_writer)
 
 add_holohub_application(ultrasound_segmentation DEPENDS
-                        OPERATORS OPTIONAL aja_source)
+                        OPERATORS OPTIONAL aja_source
+			                   yuan_qcap)
 
 add_holohub_application(velodyne_lidar_app DEPENDS
                         OPERATORS velodyne_lidar

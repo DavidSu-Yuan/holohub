@@ -32,6 +32,7 @@ target_link_libraries(ultrasound_segmentation
    holoscan::ops::segmentation_postprocessor
    holoscan::ops::holoviz
    $<TARGET_NAME_IF_EXISTS:holoscan::aja>
+   $<TARGET_NAME_IF_EXISTS:holoscan::qcap_source>
 )
 
 # Download the associated dataset if needed
@@ -85,6 +86,7 @@ if(BUILD_TESTING)
     holoscan::ops::segmentation_postprocessor
     holoscan::ops::holoviz
     $<TARGET_NAME_IF_EXISTS:holoscan::aja>
+    $<TARGET_NAME_IF_EXISTS:holoscan::qcap_source>
   )
 
   # Add the test and make sure it runs
