@@ -47,6 +47,14 @@
 #include <qcap_source.hpp>
 #endif
 
+#ifdef HDMI_CONVERTER
+#include <hdmi_converter.hpp>
+#endif
+
+#ifdef QCAP_HSB
+#include <qcap_hsb.hpp>
+#endif
+
 #include <holoscan/version_config.hpp>
 
 #define HOLOSCAN_VERSION \
@@ -112,9 +120,49 @@ class App : public holoscan::Application {
       height = from_config("yuan.height").as<uint32_t>();
 #ifdef YUAN_QCAP
       source = make_operator<ops::QCAPSourceOp>("yuan", from_config("yuan"));
+#else
+      throw std::runtime_error(
+          "YUAN_QCAP is requested but not available. Please enable yuan_qcap at build time.");
 #endif
       source_block_size = width * height * 4 * 4;
       source_num_blocks = use_rdma ? 3 : 4;
+    } else if (source_ == "qcap_hsb") {
+      width = from_config("qcap_hsb.width").as<uint32_t>();
+      height = from_config("qcap_hsb.height").as<uint32_t>();
+      std::shared_ptr<Operator> hsb;
+#ifdef QCAP_HSB
+      hsb = make_operator<ops::QcapHSBOp>("qcap_hsb", from_config("qcap_hsb"));
+#else
+      throw std::runtime_error(
+          "YUAN_QCAP is requested but not available. Please enable yuan_qcap at build time.");
+#endif
+      const int32_t storage_type_device_memory = 1;
+      const size_t num_blocks = 6;
+      size_t size = width * height * 4; // RGBA32
+      auto hdmi_converter_pool = make_resource<holoscan::BlockMemoryPool>(
+              fmt::format("converter_pool"),
+              storage_type_device_memory, size, num_blocks);
+#ifdef HDMI_CONVERTER
+      auto hdmi_converter_op = make_operator<holoscan::ops::HDMIConverterOp>(
+              fmt::format("hdmi_converter"),
+              Arg("allocator", hdmi_converter_pool));
+
+      int offset = 0;
+      int bytes_per_line = width * 2;
+      hdmi_converter_op->configure(
+              offset, bytes_per_line, width, height,
+              holoscan::ops::HDMIConverterOp::PixelFormat::YUYV_8, // Force to YUYV
+              0);
+
+      add_flow(hsb, hdmi_converter_op, { { "output", "input" } });
+
+      source = hdmi_converter_op;
+#else
+      throw std::runtime_error(
+          "HDMI_CONVERTER is requested but not available. Please enable hdmi_converter at build time.");
+#endif
+      source_block_size = width * height * 3;
+      source_num_blocks = 4;
     } else if (source_ == "deltacast") {
       width = from_config("deltacast.width").as<uint32_t>();
       height = from_config("deltacast.height").as<uint32_t>();

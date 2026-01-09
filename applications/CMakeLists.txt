@@ -64,7 +64,9 @@ add_holohub_application(endoscopy_tool_tracking DEPENDS
                         OPTIONAL  aja_source
                                   deltacast_videomaster
                                   slang_shader
+                                  hdmi_converter
                                   yuan_qcap
+                                  qcap_hsb
                                   vtk_renderer)
 
 add_subdirectory(gstreamer)

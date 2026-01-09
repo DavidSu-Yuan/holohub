@@ -47,6 +47,10 @@ yuan:
   height: 2160
   rdma: true
 
+qcap_hsb:
+  width: 3840
+  height: 2160
+
 deltacast:
   width: 1920
   height: 1080
@@ -107,6 +111,14 @@ format_converter_aja:
   resize_height: 480
 
 format_converter_yuan:
+  out_tensor_name: source_video
+  out_dtype: "float32"
+  scale_min: 0.0
+  scale_max: 255.0
+  resize_width: 854
+  resize_height: 480
+
+format_converter_qcap_hsb:
   out_tensor_name: source_video
   out_dtype: "float32"
   scale_min: 0.0
