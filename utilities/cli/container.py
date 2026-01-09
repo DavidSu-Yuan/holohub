@@ -25,6 +25,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import platform
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -592,6 +593,24 @@ class HoloHubContainer:
             "--network=host",
         ]
 
+        # Check current architecture
+        arch = platform.machine()  # e.g., 'x86_64' or 'aarch64'
+        print(f"Detected architecture: {arch}")
+
+        # ✅ Only add this section if running on aarch64
+        if arch == "aarch64":
+            USR_LIB_AARCH64_LIBRARIES_DIRECTORY = "/usr/lib/aarch64-linux-gnu/"
+            if not os.path.isdir(USR_LIB_AARCH64_LIBRARIES_DIRECTORY):
+                print(
+                    "Error: Required path and libs are missing. "
+                    "Upgrade the development kit with Jetpack 6 or newer."
+                )
+                sys.exit(1)
+            cmd += [
+                "--build-context", f"user-libs={USR_LIB_AARCH64_LIBRARIES_DIRECTORY}",
+            ]
+        else:
+            print("Skipping user-libs context (non-aarch64 host).")
         if no_cache:
             cmd.append("--no-cache")
 

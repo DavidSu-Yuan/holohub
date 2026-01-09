@@ -28,6 +28,8 @@ FROM ${BASE_IMAGE} AS base
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CMAKE_BUILD_TYPE=Release
 
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/nvidia:/opt/yuan/qcap/lib:$LD_LIBRARY_PATH
+
 # --------------------------------------------------------------------------
 #
 # Set up prerequisites to run HoloHub CLI
@@ -59,6 +61,33 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 RUN if ! python3 -m pip --version >/dev/null 2>&1; then \
         curl -sS https://bootstrap.pypa.io/get-pip.py | ${PYTHON_VERSION} \
     ; fi
+
+# --------------------------------------------------------------------------
+#
+# Qcap dependency
+RUN apt update \
+  && DEBIAN_FRONTEND=noninteractive apt-get install -y -q \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 \
+    libgles2 \
+    libopengl0 \
+    libva-dev \
+    libva-drm2 \
+    libvdpau-dev \
+    libxv-dev \
+    libasound2-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy all NVIDIA libraries
+# Docker automatically sets TARGETARCH (e.g., amd64, arm64)
+ARG TARGETARCH
+RUN echo "Building for architecture: ${TARGETARCH}"
+RUN --mount=type=bind,from=user-libs,source=/,target=/user-libs \
+    if [ "${TARGETARCH}" = "arm64" ]; then \
+        cp -a /user-libs/libfmt.so* /usr/lib/aarch64-linux-gnu/; \
+    else \
+        echo "Skipping ARM64 libs copy."; \
+    fi
 
 # --------------------------------------------------------------------------
 #
