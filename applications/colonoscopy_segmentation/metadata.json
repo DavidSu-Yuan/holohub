@@ -54,6 +54,17 @@
 					"command": "python3 colonoscopy_segmentation.py --source=aja --no-contours",
 					"workdir": "holohub_app_source"
 				}
+			},
+			"yuan": {
+				"description": "Use an YUAN device for video input",
+				"build": {
+					"depends": ["yuan_qcap"],
+					"docker_build_args": ["--target", "qcap_build"]
+				},
+				"run": {
+					"command": "python3 colonoscopy_segmentation.py --source=yuan --no-contours",
+					"workdir": "holohub_app_source"
+				}
 			}
 		},
 		"default_mode": "replayer"

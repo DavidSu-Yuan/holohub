@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM nvcr.io/nvidia/cuda:12.9.0-base-ubuntu24.04 AS base
+FROM nvcr.io/nvidia/cuda:12.9.0-base-ubuntu24.04 as base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -83,6 +83,20 @@ RUN set -e \
 # Build with AJA C++ requirements
 ########################################################
 FROM base AS aja_build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential gcc g++ git \
+        holoscan \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN apt update && apt install -y --no-install-recommends \
+        python3-dev \
+        && rm -rf /var/lib/apt/lists/*
+
+########################################################
+# Build with QCAP C++ requirements
+########################################################
+FROM base AS qcap_build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential gcc g++ git \

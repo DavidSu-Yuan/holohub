@@ -11,7 +11,7 @@ Full workflow including a generic visualization of segmentation results from a p
 ## Requirements
 
 - Python 3.8+
-- The provided applications are configured to either use the AJA capture card for input stream, or a pre-recorded video of the colonoscopy data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
+- The provided applications are configured to either use the AJA or Yuan capture card for input stream, or a pre-recorded video of the colonoscopy data (replayer). Follow the [setup instructions from the user guide](https://docs.nvidia.com/holoscan/sdk-user-guide/aja_setup.html) to use the AJA capture card.
 
 ## Data
 
@@ -56,14 +56,16 @@ To pass runtime arguments to the application:
 ### CLI Parameters
 
 ```bash
-usage: colonoscopy_segmentation.py [-h] [-s {replayer,aja}] [-c CONFIG] [-d DATA] [--contours | --no-contours]
+usage: colonoscopy_segmentation.py [-h] [-s {replayer,aja,yuan}] [-c CONFIG] [-d DATA] [--contours | --no-contours]
 
 Colonoscopy segmentation demo application.
 
 options:
   -h, --help            show this help message and exit
-  -s {replayer,aja}, --source {replayer,aja}
-                        If 'replayer', replay a prerecorded video. If 'aja' use an AJA capture card as the source (default: replayer).
+  -s {replayer,aja,yuan}, --source {replayer,aja,yuan}
+                        If 'replayer', replay a prerecorded video.
+                        If 'aja' use an AJA capture card as the source (default: replayer).
+                        If 'yuan' use an YUAN capture card as the source (default: replayer).
   -c CONFIG, --config CONFIG
                         Set config path to override the default config file location
   -d DATA, --data DATA  Set the data path
