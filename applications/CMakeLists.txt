@@ -60,6 +60,12 @@ add_holohub_application(endoscopy_tool_tracking DEPENDS
                                   qcap_hsb
                                   vtk_renderer)
 
+add_holohub_application(preview DEPENDS
+                        OPERATORS
+                                  qcap_hsb
+                                  hdmi_converter
+                         OPTIONAL yuan_qcap)
+
 add_subdirectory(h264)
 
 add_holohub_application(isaac_sim_holoscan_bridge)
