@@ -153,6 +153,42 @@ class EndoscopyApp(Application):
             rdma = yuan_kwargs["rdma"]
             source_block_size = width * height * 4 * 4
             source_num_blocks = 3 if rdma else 4
+        elif source_name == "qcap_hsb":
+            qcap_hsb_kwargs = self.kwargs("qcap_hsb")
+            qcap_hsb_source = lazy_import("holohub.qcap_hsb")
+            hsb = qcap_hsb_source.QcapHSBOp(self,
+                name="qcap_hsb",
+                **qcap_hsb_kwargs)
+
+            # 4 bytes/channel, 4 channels
+            width = qcap_hsb_kwargs["width"]
+            height = qcap_hsb_kwargs["height"]
+            source_block_size = width * height * 4
+            source_num_blocks = 3 if rdma else 4
+
+            source_pool_kwargs = dict(
+                storage_type = MemoryStorageType.DEVICE,
+                block_size = source_block_size,
+                num_blocks = source_num_blocks,
+            )
+
+            hdmi_converter_source = lazy_import("holohub.hdmi_converter")
+            hdmi_converter = hdmi_converter_source.HDMIConverterOp(
+                self,
+                name = "hdmi_converter",
+                allocator = BlockMemoryPool(self, name="hdmi_converter_pool", **source_pool_kwargs),
+            )
+
+            hdmi_converter.configure(
+                start_byte = 0,
+                bytes_per_line = width * 2,
+                pixel_width = width,
+                pixel_height = height,
+                pixel_format = hdmi_converter_source.HDMIConverterOp.PixelFormat.YUYV_8,
+            )
+
+            self.add_flow(hsb, hdmi_converter);
+            source = hdmi_converter
         else:
             width = 854
             height = 480
@@ -310,6 +346,7 @@ class EndoscopyApp(Application):
         )
 
         output_signal = "output" if self.source == "replayer" else "video_buffer_output"
+        output_signal = "output" if self.source == "qcap_hsb" else output_signal
         if source_name == "deltacast":
             output_signal = "signal"
 
@@ -378,7 +415,7 @@ class EndoscopyApp(Application):
                     visualizer,
                     {
                         (
-                            "video_buffer_output" if self.source != "replayer" else "output",
+                            output_signal,
                             input_video_signal,
                         )
                     },
@@ -421,6 +458,7 @@ def main():
             "aja",
             "deltacast",
             "yuan",
+            "qcap_hsb",
         ],
         default="replayer",
         help=(

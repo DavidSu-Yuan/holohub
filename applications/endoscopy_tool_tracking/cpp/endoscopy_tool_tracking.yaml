@@ -33,9 +33,9 @@ extensions:
 # Uncomment the following extension when using deltacast as a source
 #  - lib/gxf_extensions/libgxf_videomaster.so
 # Uncomment the following extension when using yuan as source
-#  - lib/gxf_extensions/libgxf_qcap_source.so
+  - lib/gxf_extensions/libgxf_qcap_source.so
 
-source: "replayer"    # "replayer" or "aja" or "deltacast" or "yuan"
+source: "qcap_hsb"    # "replayer" or "aja" or "deltacast" or "yuan"
 postprocessor: "tool_tracking_postprocessor" # "slang_shader" or "tool_tracking_postprocessor"
 visualizer: "holoviz"  # "holoviz" or "vtk"
 record_type: "none"   # or "input" if you want to record input video stream, or "visualizer" if you want
@@ -54,6 +54,10 @@ yuan:
   width: 3840
   height: 2160
   rdma: true
+
+qcap_hsb:
+  width: 3840
+  height: 2160
 
 deltacast:
   width: 1920
@@ -113,6 +117,14 @@ format_converter_aja:
   resize_height: 480
 
 format_converter_yuan:
+  out_tensor_name: source_video
+  out_dtype: "float32"
+  scale_min: 0.0
+  scale_max: 255.0
+  resize_width: 854
+  resize_height: 480
+
+format_converter_qcap_hsb:
   out_tensor_name: source_video
   out_dtype: "float32"
   scale_min: 0.0
