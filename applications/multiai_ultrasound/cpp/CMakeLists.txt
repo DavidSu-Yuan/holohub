@@ -33,6 +33,7 @@ target_link_libraries(multiai_ultrasound
     holoscan::ops::inference
     holoscan::ops::inference_processor
     $<TARGET_NAME_IF_EXISTS:holoscan::aja>
+    $<TARGET_NAME_IF_EXISTS:holoscan::qcap_source>
     visualizer_icardio
 )
 

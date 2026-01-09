@@ -67,3 +67,9 @@ Next, run the commands of your choice:
     cd <HOLOHUB_SOURCE_DIR>/applications/multiai_ultrasound/python
     python3 multiai_ultrasound.py --source=aja
     ```
+
+* Using a Yuan card
+    ```bash
+    cd <HOLOHUB_SOURCE_DIR>/applications/multiai_ultrasound/python
+    python3 multiai_ultrasound.py --source=yuan
+    ```
