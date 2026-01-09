@@ -30,3 +30,12 @@ sed -i -e 's#^source:.*#source: aja#' applications/ultrasound_segmentation/cpp/u
 ./holohub run ultrasound_segmentation --language=cpp [--local] \
     --configure-args="-DOP_aja_source:BOOL=ON"
 ```
+
+* Using a Yuan card
+
+```bash
+sed -i -e '/^#.*yuan_qcap/s/^#//' applications/ultrasound_segmentation/cpp/ultrasound_segmentation.yaml
+sed -i -e 's#^source:.*#source: yuan#' applications/ultrasound_segmentation/cpp/ultrasound_segmentation.yaml
+./holohub run ultrasound_segmentation --language=cpp [--local] \
+    --configure-args="-DOP_yuan_source:BOOL=ON"
+```

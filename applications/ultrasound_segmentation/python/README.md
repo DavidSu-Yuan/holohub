@@ -31,3 +31,11 @@ Please refer to the top level Holohub README.md for more information about the H
     --configure-args="-DOP_aja_source:BOOL=ON" \
     --run-args="--source=aja"
 ```
+
+### YUAN Capture Card Input
+
+```bash
+./holohub run ultrasound_segmentation --language=python [--local] \
+    --configure-args="-DOP_yuan_source:BOOL=ON" \
+    --run-args="--source=yuan"
+```
