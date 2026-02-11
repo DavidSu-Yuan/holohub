@@ -32,6 +32,31 @@ ARG DEBIAN_FRONTEND=noninteractive
 # Holohub run setup
 #
 
+# Install python3 if not present (needed for holohub CLI)
+ARG PYTHON_VERSION=python3
+RUN if ! command -v python3 >/dev/null 2>&1; then \
+        apt-get update \
+        && apt-get install --no-install-recommends -y \
+            software-properties-common curl gpg-agent \
+        && add-apt-repository ppa:deadsnakes/ppa \
+        && apt-get update \
+        && apt-get install --no-install-recommends -y \
+            ${PYTHON_VERSION} \
+        && apt purge -y \
+            python3-pip \
+            software-properties-common \
+        && apt-get autoremove --purge -y \
+        && rm -rf /var/lib/apt/lists/* \
+        && update-alternatives --install /usr/bin/python python /usr/bin/${PYTHON_VERSION} 100 \
+        && if [ "${PYTHON_VERSION}" != "python3" ]; then \
+            update-alternatives --install /usr/bin/python3 python3 /usr/bin/${PYTHON_VERSION} 100 \
+            ; fi \
+    ; fi
+ENV PIP_BREAK_SYSTEM_PACKAGES=1
+RUN if ! python3 -m pip --version >/dev/null 2>&1; then \
+        curl -sS https://bootstrap.pypa.io/get-pip.py | ${PYTHON_VERSION} \
+    ; fi
+
 RUN mkdir -p /tmp/scripts
 COPY run /tmp/scripts/
 RUN mkdir -p /tmp/scripts/utilities
@@ -54,6 +79,11 @@ RUN apt update \
         libgstreamer-plugins-base1.0-0 \
         libgles2 \
         libopengl0
+
+RUN apt-get update && apt-get install --no-install-recommends -y wget \
+    && wget http://ports.ubuntu.com/ubuntu-ports/pool/main/i/icu/libicu70_70.1-2_arm64.deb \
+    && dpkg -i libicu70_70.1-2_arm64.deb \
+    && rm libicu70_70.1-2_arm64.deb
 
 # For benchmarking
 RUN apt update \
