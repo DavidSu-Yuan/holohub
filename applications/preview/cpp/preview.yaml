@@ -32,9 +32,8 @@ external_source:
 yuan:
   width: 3840
   height: 2160
-  rdma: false
-  channel: 0
-  multich_mode: 2
+  rdma: true
+  pixel_format: "y210"
   input_type: "sdi" # "dvi_d", "dp", "sdi" or "hdmi"
   #image_no_signal: "colorbar.png"
   #image_no_device: "colorbar.png"

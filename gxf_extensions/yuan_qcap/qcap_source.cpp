@@ -524,7 +524,9 @@ void QCAPSource::configureInput() {
         QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, 1);
     } else {
         if (sdi12g_mode_.get() != SDI12G_DEFAULT_MODE) {
-            ULONG qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
+            // New QCAP SDK inverse this logic
+            //ULONG qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 0 : 1);
+            ULONG qcap_sdi_mode = (sdi12g_mode_.get() == SDI12G_QUADLINK_MODE ? 1 : 0);
             QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_SDI12G_MODE, qcap_sdi_mode);
             QCAP_SET_VIDEO_INPUT(m_hDevice, QCAP_INPUT_TYPE_SDI);
         }
@@ -641,6 +643,13 @@ gxf_result_t QCAPSource::start() {
       QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_IO_METHOD, 1);
   }
   QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_VO_BACKEND, 2);
+
+
+  if (pixel_format_ == PIXELFORMAT_Y210) {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_Y210_REDUCED_MODE, 1);
+  } else {
+      QCAP_SET_DEVICE_CUSTOM_PROPERTY(m_hDevice, QCAP_DEVPROP_Y210_REDUCED_MODE, 0);
+  }
 
   QCAP_REGISTER_NO_SIGNAL_DETECTED_CALLBACK(m_hDevice, on_process_no_signal_detected, this);
   QCAP_REGISTER_SIGNAL_REMOVED_CALLBACK(m_hDevice, on_process_signal_removed, this);
