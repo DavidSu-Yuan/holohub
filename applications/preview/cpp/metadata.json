@@ -25,7 +25,7 @@
 		"tags": ["Endoscopy", "Tracking", "AJA"],
 		"ranking": 0,
 		"run": {
-			"command": "<holohub_app_bin>/preview --data <holohub_data_dir>/endoscopy",
+			"command": "<holohub_app_bin>/preview --data <holohub_data_dir>/preview",
 			"workdir": "holohub_bin"
 		}
 	}

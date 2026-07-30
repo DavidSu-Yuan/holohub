@@ -32,7 +32,7 @@
 		],
 		"ranking": 1,
 		"run": {
-			"command": "python3 <holohub_app_source>/preview.py --data <holohub_data_dir>/endoscopy",
+			"command": "python3 <holohub_app_source>/preview.py --data <holohub_data_dir>/preview",
 			"workdir": "holohub_bin"
 		}
 	}

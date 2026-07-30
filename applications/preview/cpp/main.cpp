@@ -106,8 +106,8 @@ class App : public holoscan::Application {
   std::string source_ = "replayer";
   std::string visualizer_name = "holoviz";
   Record record_type_ = Record::NONE;
-  std::string datapath = "data/endoscopy";
-  std::string imagepath = "data/endoscopy";
+  std::string datapath = "data/preivew";
+  std::string imagepath = "data/preivew";
 };
 
 /** Helper function to parse the command line arguments */
